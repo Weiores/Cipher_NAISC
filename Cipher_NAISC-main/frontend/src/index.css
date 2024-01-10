@@ -1,0 +1,144 @@
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;400;500;600;700&family=Barlow+Condensed:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Base resets ─────────────────────────── */
+@layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
+  html, body, #root {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    background-color: #04080c;
+    color: #ddeeff;
+    font-family: 'Barlow', sans-serif;
+    font-size: 12px;
+    line-height: 1.5;
+    overflow-x: hidden;
+  }
+
+  /* Scanline overlay — applied via body::after */
+  body::after {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.03) 2px,
+      rgba(0,0,0,0.03) 4px
+    );
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  /* Custom scrollbars */
+  ::-webkit-scrollbar {
+    width: 3px;
+    height: 3px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #1f3550;
+    border-radius: 2px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #254060;
+  }
+}
+
+/* ── Component utilities ─────────────────── */
+@layer components {
+  /* Panel shell */
+  .panel {
+    @apply bg-bg-1 border border-border rounded-[5px] overflow-hidden;
+  }
+
+  /* Panel header */
+  .panel-header {
+    @apply flex items-center justify-between px-[10px] py-[7px] border-b border-border bg-bg-2;
+  }
+
+  /* Panel title */
+  .panel-title {
+    @apply font-mono text-[10px] text-text-2 tracking-[0.08em] uppercase flex items-center gap-[6px];
+  }
+
+  /* Badge variants */
+  .badge {
+    @apply font-mono text-[9px] px-[6px] py-[2px] rounded-[2px] tracking-[0.04em];
+  }
+  .badge-live {
+    @apply bg-cyan-100 text-cyan-700 border border-cyan-300 text-xs px-2 py-1 rounded-full;
+  }
+  .badge-degraded {
+    @apply bg-orange-100 text-orange-700 border border-orange-300 text-xs px-2 py-1 rounded-full;
+  }
+  .badge-incident {
+    @apply bg-red-100 text-red-700 border border-red-300 text-xs px-2 py-1 rounded-full;
+  }
+  .badge-info {
+    @apply bg-blue-100 text-blue-700 border border-blue-300 text-xs px-2 py-1 rounded-full;
+  }
+  .badge-sop {
+    @apply bg-purple-100 text-purple-700 border border-purple-300 text-xs px-2 py-1 rounded-full;
+  }
+
+  /* Stat card */
+  .stat-card {
+    @apply bg-bg-1 border border-border rounded-[5px] px-3 py-[10px] relative overflow-hidden;
+  }
+  .stat-card::after {
+    content: '';
+    @apply absolute top-0 left-0 right-0 h-[1.5px];
+  }
+  .stat-card-critical::after { background: #ff2244; box-shadow: 0 0 8px #ff2244; }
+  .stat-card-high::after { background: #ff8c00; }
+  .stat-card-medium::after { background: #ffd600; }
+  .stat-card-low::after { background: #00e5aa; }
+  .stat-card-info::after { background: #00aaff; }
+
+  /* Alert item */
+  .alert-item {
+    @apply grid gap-2 items-start px-[5px] py-[6px] rounded-[3px] cursor-pointer
+           transition-colors border-b border-white/[0.03] last:border-0;
+    grid-template-columns: 2px 1fr auto;
+  }
+  .alert-item:hover {
+    @apply bg-bg-2;
+  }
+
+  /* Alert severity bar */
+  .alert-bar {
+    @apply w-[2px] rounded-[1px] self-stretch min-h-[28px];
+  }
+
+  /* Zone tile */
+  .zone-tile {
+    @apply border border-border rounded-[3px] flex flex-col items-center justify-center
+           gap-[3px] p-[6px] cursor-pointer transition-all;
+  }
+  .zone-name {
+    @apply font-mono text-[9px] text-text-3 uppercase text-center tracking-[0.05em];
+  }
+  .zone-level {
+    @apply font-mono text-[10px] font-bold;
+  }
+
+  /* Action button */
+  .action-btn {
+    @apply w-full px-[10px] py-2 rounded-[4px] font-mono text-[10px] font-bold
+           tracking-[0.07em] uppercase cursor-pointer border transition-all text-center;
+  }
+}

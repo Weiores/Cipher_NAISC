@@ -1,0 +1,14 @@
+.venv/
+**/.venv/
+.tmp_audio/
+**/.tmp_audio/
+.tmp_setup/
+**/.tmp_setup/
+.ultralytics/
+**/.ultralytics/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*.log
+.DS_Store
+Thumbs.db
