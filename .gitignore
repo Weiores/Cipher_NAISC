@@ -1,0 +1,15 @@
+.venv/
+venv/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.tmp_setup/
+.tmp_audio/
+.perception-layer.git.backup/
+node_modules/
+dist/
+build/
+*.pyc
+*.pyo
+Thumbs.db
+.DS_Store
