@@ -1,0 +1,2112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security Perception & Reasoning Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #e0e0e0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+            border-bottom: 2px solid #00d4ff;
+            padding-bottom: 20px;
+        }
+        
+        header h1 {
+            color: #00d4ff;
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 0 0 20px rgba(0, 212, 255, 0.5);
+        }
+        
+        header p {
+            color: #888;
+            font-size: 1.1rem;
+        }
+        
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 25px;
+            margin-bottom: 25px;
+        }
+        
+        .panel {
+            background: rgba(30, 40, 60, 0.8);
+            border: 1px solid #00d4ff;
+            border-radius: 8px;
+            padding: 25px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        
+        .panel h2 {
+            color: #00d4ff;
+            margin-bottom: 15px;
+            font-size: 1.3rem;
+            border-bottom: 1px solid #003d6b;
+            padding-bottom: 10px;
+        }
+        
+        .data-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #333;
+        }
+        
+        .data-row:last-child {
+            border-bottom: none;
+        }
+        
+        .data-label {
+            color: #00d4ff;
+            font-weight: 500;
+            min-width: 150px;
+        }
+        
+        .data-value {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #fff;
+        }
+        
+        .threat-level {
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 0.95rem;
+            letter-spacing: 1px;
+        }
+        
+        .threat-low {
+            background-color: #00aa00;
+            color: #fff;
+        }
+        
+        .threat-medium {
+            background-color: #ffaa00;
+            color: #000;
+        }
+        
+        .threat-high {
+            background-color: #ff5500;
+            color: #fff;
+        }
+        
+        .threat-critical {
+            background-color: #ff0000;
+            color: #fff;
+            animation: pulse 1s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .metric-card {
+            background: rgba(0, 50, 100, 0.5);
+            border: 1px solid #00aa00;
+            border-radius: 6px;
+            padding: 15px;
+            text-align: center;
+        }
+        
+        .metric-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #00ff00;
+            margin: 10px 0;
+        }
+        
+        .metric-label {
+            font-size: 0.85rem;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .action-button {
+            background: linear-gradient(135deg, #00d4ff 0%, #0088cc 100%);
+            color: #000;
+            border: none;
+            padding: 12px 24px;
+            margin: 8px;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 1rem;
+        }
+        
+        .action-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(0, 212, 255, 0.4);
+        }
+        
+        .action-button:active {
+            transform: translateY(0);
+        }
+        
+        .test-scenarios {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-bottom: 25px;
+        }
+        
+        .scenario-btn {
+            background: rgba(0, 100, 150, 0.7);
+            color: #00d4ff;
+            border: 1px solid #00d4ff;
+            padding: 15px;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+        }
+        
+        .scenario-btn:hover {
+            background: rgba(0, 150, 200, 0.9);
+            box-shadow: 0 0 15px rgba(0, 212, 255, 0.5);
+        }
+        
+        .scenario-btn.active {
+            background: #00d4ff;
+            color: #000;
+            font-weight: bold;
+        }
+        
+        .audio-detection {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .audio-item {
+            background: rgba(0, 50, 100, 0.3);
+            border-left: 3px solid #ff9800;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+        
+        .explanation-section {
+            background: rgba(0, 50, 100, 0.3);
+            border-left: 3px solid #4CAF50;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 15px;
+        }
+        
+        .explanation-section h3 {
+            color: #4CAF50;
+            margin-bottom: 10px;
+            font-size: 1rem;
+        }
+        
+        .explanation-text {
+            color: #ddd;
+            line-height: 1.6;
+            font-size: 0.95rem;
+        }
+        
+        .key-factors {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid #003d6b;
+        }
+        
+        .key-factors li {
+            margin: 5px 0;
+            margin-left: 20px;
+            color: #bbb;
+            font-size: 0.9rem;
+        }
+        
+        .loading {
+            text-align: center;
+            color: #00d4ff;
+            padding: 20px;
+        }
+        
+        .spinner {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            border: 3px solid #003d6b;
+            border-top: 3px solid #00d4ff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .error-message {
+            background: rgba(255, 0, 0, 0.2);
+            border: 1px solid #ff5500;
+            color: #ff9999;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+        }
+        
+        .success-message {
+            background: rgba(0, 150, 0, 0.2);
+            border: 1px solid #00ff00;
+            color: #99ff99;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+        }
+        
+        .full-width {
+            grid-column: 1 / -1;
+        }
+        
+        @media (max-width: 1000px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .test-scenarios {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .metrics-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🛡️ Security Dashboard</h1>
+            <p>Real-time Perception & Reasoning Analysis</p>
+        </header>
+        
+        <div id="messageContainer"></div>
+        
+        <!-- TAB NAVIGATION -->
+        <div style="display: flex; gap: 10px; margin-bottom: 25px; border-bottom: 2px solid #003d6b; padding-bottom: 10px;">
+            <button type="button" class="scenario-btn active" onclick="switchTab('scenarios')" id="tab-scenarios">
+                📋 Test Scenarios
+            </button>
+            <button type="button" class="scenario-btn" onclick="switchTab('video')" id="tab-video">
+                📹 Video Testing
+            </button>
+        </div>
+        
+        <!-- TEST SCENARIOS TAB -->
+        <div id="tab-content-scenarios" style="display: block;">
+            <div class="test-scenarios">
+                <button type="button" class="scenario-btn" onclick="testScenario('normal')">
+                    👤 Normal Person
+                </button>
+                <button type="button" class="scenario-btn" onclick="testScenario('armed')">
+                    🔫 Armed Intruder
+                </button>
+                <button type="button" class="scenario-btn" onclick="testScenario('guard')">
+                    👮 Security Guard
+                </button>
+                <button type="button" class="scenario-btn" onclick="testScenario('escalating')">
+                    📈 Escalating Threat
+                </button>
+            </div>
+        </div>
+        
+        <!-- VIDEO TESTING TAB -->
+        <div id="tab-content-video" style="display: none;">
+            <div class="panel" style="margin-bottom: 25px;">
+                <h2>📹 Video Upload & Testing</h2>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+                    <!-- Video Upload -->
+                    <div>
+                        <label style="color: #00d4ff; font-weight: bold; display: block; margin-bottom: 10px;">
+                            Upload Video File:
+                        </label>
+                        <div style="border: 2px dashed #00d4ff; border-radius: 6px; padding: 15px; text-align: center; background: rgba(0,50,100,0.2);">
+                            <input type="file" id="videoFileUpload" accept="video/mp4,video/avi,video/quicktime,video/x-matroska" style="display: none;">
+                            <button type="button" class="action-button" onclick="document.getElementById('videoFileUpload').click()" style="margin-bottom: 10px;">
+                                📤 Choose Video File
+                            </button>
+                            <div id="uploadStatus" style="font-size: 0.85rem; color: #888; margin-top: 10px;">Select a video file (MP4, AVI, MOV, MKV)</div>
+                            <button type="button" class="action-button" id="uploadBtn" onclick="uploadVideo()" style="margin-top: 10px; display: none; background: linear-gradient(135deg, #00aa00 0%, #006600 100%);">
+                                ✓ Upload
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label style="color: #00d4ff; font-weight: bold; display: block; margin-bottom: 10px;">
+                            Available Videos:
+                        </label>
+                        <div id="videoList" style="border: 1px solid #003d6b; border-radius: 4px; max-height: 150px; overflow-y: auto; background: rgba(0,0,0,0.2);">
+                            <div style="padding: 10px; color: #888;">Loading videos...</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <button type="button" class="action-button" onclick="loadVideoList()" style="margin-right: 10px;">
+                    🔄 Refresh Video List
+                </button>
+            </div>
+            
+            <!-- Selected Video Info -->
+            <div class="panel" style="margin-bottom: 25px;">
+                <h2>📋 Selected Video Info</h2>
+                
+                <div id="selectedVideo" style="border: 1px solid #00aa00; border-radius: 4px; padding: 15px; background: rgba(0,50,0,0.3); min-height: 80px;">
+                    <div style="color: #888;">No video selected</div>
+                </div>
+            </div>
+            
+            <!-- Video Player and Detection Display -->
+            <div class="panel" style="margin-bottom: 25px;">
+                <h2>📺 Video Player & Detection Results</h2>
+                
+                <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px;">
+                    <!-- Video Display -->
+                    <div>
+                        <div id="videoDisplay" style="width: 100%; background: #000; border-radius: 6px; overflow: hidden; position: relative;">
+                            <canvas id="videoCanvas" style="width: 100%; height: auto; display: block;"></canvas>
+                            <div id="videoStatus" style="color: #888; text-align: center; padding: 40px; font-size: 0.9rem;">
+                                No video loaded
+                            </div>
+                        </div>
+                        
+                        <div style="margin-top: 15px; display: flex; gap: 10px;">
+                            <button type="button" class="action-button" onclick="playNextFrame()" style="flex: 1;">
+                                ⏭️ Next Frame
+                            </button>
+                            <button type="button" class="action-button" onclick="playPreviousFrame()" style="flex: 1;">
+                                ⏮️ Previous Frame
+                            </button>
+                            <button type="button" class="action-button" onclick="playVideo()" style="flex: 1;">
+                                ▶️ Play
+                            </button>
+                            <button type="button" class="action-button" onclick="exportFrameData()" style="flex: 1; background: linear-gradient(135deg, #00aa00 0%, #006600 100%);">
+                                💾 Export Data
+                            </button>
+                        </div>
+                        
+                        <div style="margin-top: 10px;">
+                            <input type="range" id="frameSlider" min="0" max="100" value="0" style="width: 100%; cursor: pointer;" onchange="jumpToFrame(this.value)">
+                            <div style="text-align: center; color: #888; font-size: 0.85rem; margin-top: 5px;">
+                                Frame: <span id="frameCounter">0</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Detection Info for Current Frame -->
+                    <div>
+                        <div style="background: rgba(0,50,100,0.3); border: 1px solid #00d4ff; border-radius: 6px; padding: 15px;">
+                            <h3 style="color: #00d4ff; margin-bottom: 10px; font-size: 0.95rem;">Current Frame Detection</h3>
+                            
+                            <div style="font-size: 0.85rem; color: #bbb; line-height: 1.8;">
+                                <div><strong>Weapon:</strong> <span id="frameWeapon">—</span></div>
+                                <div><strong>Emotion:</strong> <span id="frameEmotion">—</span></div>
+                                <div><strong>Tone:</strong> <span id="frameTone">—</span></div>
+                                <div><strong>Uniform:</strong> <span id="frameUniform">—</span></div>
+                                <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #003d6b;">
+                                    <div><strong>Threat Level:</strong> <span id="frameThreat">—</span></div>
+                                    <div><strong>Score:</strong> <span id="frameScore">—</span></div>
+                                    <div><strong>Action:</strong> <span id="frameAction">—</span></div>
+                                    <div><strong>Confidence:</strong> <span id="frameConfidence">—</span></div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div style="margin-top: 15px; background: rgba(100,50,0,0.3); border: 1px solid #ff9800; border-radius: 6px; padding: 15px;">
+                            <h3 style="color: #ff9800; margin-bottom: 10px; font-size: 0.95rem;">Processing Status</h3>
+                            <div id="processingStatus" style="font-size: 0.85rem; color: #bbb;">
+                                <div>Status: <span id="statusText">Ready - Click Play button to begin</span></div>
+                                <div>Analyzed: <span id="statusFrames">0</span> frames</div>
+                                <div id="progressBar" style="width: 100%; height: 6px; background: #333; border-radius: 3px; margin-top: 10px; overflow: hidden;">
+                                    <div style="height: 100%; width: 0%; background: #00aa00; transition: width 0.3s;"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="margin-top: 15px; background: rgba(0,70,40,0.25); border: 1px solid #23c483; border-radius: 6px; padding: 15px;">
+                            <h3 style="color: #23c483; margin-bottom: 10px; font-size: 0.95rem;">Video Summary (All Detection Frames)</h3>
+                            <div id="videoSummaryPanel" style="font-size: 0.85rem; color: #bbb; line-height: 1.7;">
+                                <div style="color: #888;">No summary available yet. Process a video first.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="main-grid">
+            <!-- PERCEPTION DETECTION PANEL -->
+            <div class="panel">
+                <h2>📹 Perception Detection</h2>
+                
+                <div class="data-row">
+                    <span class="data-label">Weapon Detected:</span>
+                    <span class="data-value" id="weaponDetected">—</span>
+                </div>
+                
+                <div class="data-row">
+                    <span class="data-label">Emotion:</span>
+                    <span class="data-value" id="emotion">—</span>
+                </div>
+                
+                <div class="data-row">
+                    <span class="data-label">Audio Tone:</span>
+                    <span class="data-value" id="tone">—</span>
+                </div>
+                
+                <div class="data-row">
+                    <span class="data-label">Uniform Present:</span>
+                    <span class="data-value" id="uniformPresent">—</span>
+                </div>
+                
+                <div class="data-row">
+                    <span class="data-label">Speech Detected:</span>
+                    <span class="data-value" id="speechPresent">—</span>
+                </div>
+                
+                <div class="audio-detection">
+                    <div class="audio-item">
+                        <strong>Keywords:</strong>
+                        <div id="keywords" style="font-size: 0.85rem; color: #ff9800; margin-top: 5px;">None</div>
+                    </div>
+                    <div class="audio-item">
+                        <strong>Acoustic Events:</strong>
+                        <div id="acousticEvents" style="font-size: 0.85rem; color: #ff9800; margin-top: 5px;">None</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- THREAT ASSESSMENT PANEL -->
+            <div class="panel">
+                <h2>⚠️ Threat Assessment</h2>
+                
+                <div class="data-row">
+                    <span class="data-label">Threat Level:</span>
+                    <span class="data-value" id="threatLevel">—</span>
+                </div>
+                
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-label">Weapon Score</div>
+                        <div class="metric-value" id="weaponScore">0.00</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Emotion Score</div>
+                        <div class="metric-value" id="emotionScore">0.00</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Audio Score</div>
+                        <div class="metric-value" id="audioScore">0.00</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Behavioral Score</div>
+                        <div class="metric-value" id="behavioralScore">0.00</div>
+                    </div>
+                </div>
+                
+                <div class="data-row" style="margin-top: 20px;">
+                    <span class="data-label">Combined Score:</span>
+                    <span class="data-value" id="combinedScore">0.00</span>
+                </div>
+                
+                <div class="data-row">
+                    <span class="data-label">Trend:</span>
+                    <span class="data-value" id="trend">—</span>
+                </div>
+            </div>
+            
+            <!-- ACTION & RECOMMENDATION PANEL -->
+            <div class="panel">
+                <h2>🎯 Recommended Action</h2>
+                
+                <div class="data-row">
+                    <span class="data-label">Action:</span>
+                    <span class="data-value" id="action">—</span>
+                </div>
+                
+                <div class="data-row">
+                    <span class="data-label">Priority:</span>
+                    <span class="data-value" id="priority">—</span>
+                </div>
+                
+                <div class="data-row">
+                    <span class="data-label">Confidence:</span>
+                    <span class="data-value" id="confidence">—</span>
+                </div>
+                
+                <div class="explanation-section">
+                    <h3>📋 Reasoning:</h3>
+                    <div class="explanation-text" id="actionReason">—</div>
+                </div>
+            </div>
+            
+            <!-- EXPLANATION PANEL -->
+            <div class="panel">
+                <h2>🔍 Reasoning Analysis</h2>
+                
+                <div class="explanation-text" id="summary">—</div>
+                
+                <div class="key-factors">
+                    <strong style="color: #00d4ff;">Key Factors:</strong>
+                    <ul id="keyFactors">
+                        <li>None</li>
+                    </ul>
+                </div>
+                
+                <div class="key-factors">
+                    <strong style="color: #ff9800;">Detected Anomalies:</strong>
+                    <ul id="anomalies">
+                        <li>None</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        
+        <!-- CONTROLS -->
+        <div class="panel full-width">
+            <h2>🎮 Controls</h2>
+            <button type="button" class="action-button" onclick="loadFromAPI()">🔄 Load from API</button>
+            <button type="button" class="action-button" onclick="reset()">🔄 Reset Display</button>
+            <button type="button" class="action-button" onclick="toggleAPI()">🔌 <span id="apiToggleText">Enable API Mode</span></button>
+        </div>
+    </div>
+    
+    <script>
+        // Add global error handler
+        window.addEventListener('error', function(e) {
+            console.error('JavaScript Error:', e.error);
+            const msg = document.getElementById('messageContainer');
+            if (msg) {
+                msg.innerHTML = `<div class="error-message"><strong>Error:</strong> ${e.error?.message || e.message}</div>`;
+            }
+        });
+        
+        // Cloud Reasoning Functions - called once with summary
+        async function fetchCloudReasoningSummary(videoResults) {
+            try {
+                if (!videoResults || !videoResults.video_id) {
+                    console.log('[REASONING] No video_id in results, skipping');
+                    return;
+                }
+                
+                console.log('[REASONING] fetchCloudReasoningSummary called for video_id:', videoResults.video_id);
+                
+                // Call the real-time API summarize endpoint - it returns cloud reasoning + threat assessment
+                const endpoint = `${REALTIME_API}/api/realtime/summarize/${encodeURIComponent(videoResults.video_id)}`;
+                console.log('[REASONING] Calling endpoint:', endpoint);
+                
+                const response = await fetch(endpoint, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                console.log('[REASONING] Response status:', response.status);
+                
+                if (!response.ok) {
+                    console.error('[REASONING] Response error:', response.statusText);
+                    showMessage(`❌ Cloud reasoning failed: ${response.statusText}`, 'error');
+                    return;
+                }
+                
+                const reasoningData = await response.json();
+                console.log('[REASONING] Response data:', reasoningData);
+                
+                if (reasoningData && reasoningData.status === 'success') {
+                    console.log('[REASONING] Updating display with:', reasoningData);
+                    updateReasoningDisplay(reasoningData);
+                    showMessage('✓ Cloud reasoning completed - threat assessment updated', 'success');
+                } else {
+                    console.error('[REASONING] Response not successful:', reasoningData);
+                    showMessage(`⚠️ Warning: Reasoning may be incomplete`, 'error');
+                }
+                
+            } catch (error) {
+                console.error('[REASONING] Error:', error.message);
+                console.error('[REASONING] Stack:', error.stack);
+                showMessage(`❌ Cloud reasoning error: ${error.message}`, 'error');
+            }
+        }
+        
+        function updateReasoningDisplay(reasoningData) {
+            try {
+                console.log('[REASONING] updateReasoningDisplay called with:', reasoningData);
+                
+                if (!reasoningData) {
+                    console.warn('[REASONING] No reasoning data to display');
+                    return;
+                }
+                
+                // Parse response fields from cloud reasoning endpoint
+                const threatLevel = (reasoningData.overall_threat_level || 'medium').toLowerCase();
+                const action = reasoningData.recommended_action || 'monitor';
+                const priority = reasoningData.priority || 'medium';
+                const confidence = reasoningData.confidence ?? reasoningData.overall_threat_score ?? 0.0;
+                const explanation = reasoningData.reasoning_explanation || 'Video analysis complete';
+                const keyFactors = reasoningData.key_factors || [];
+                
+                // Update Threat Level Badge
+                const threatBadge = `<span class="threat-level threat-${threatLevel}">${threatLevel.toUpperCase()}</span>`;
+                const threatEl = document.getElementById('threatLevel');
+                if (threatEl) {
+                    threatEl.innerHTML = threatBadge;
+                    console.log('[REASONING] Updated threat level to:', threatLevel.toUpperCase());
+                }
+                
+                // Update Recommended Action section
+                const actionEl = document.getElementById('action');
+                if (actionEl) {
+                    actionEl.textContent = action.replace(/_/g, ' ').toUpperCase();
+                    console.log('[REASONING] Set action to:', action);
+                }
+                
+                const priorityEl = document.getElementById('priority');
+                if (priorityEl) {
+                    priorityEl.textContent = priority.toUpperCase();
+                    console.log('[REASONING] Set priority to:', priority);
+                }
+                
+                const confidenceEl = document.getElementById('confidence');
+                if (confidenceEl) {
+                    const confPercent = (Number(confidence) * 100).toFixed(0);
+                    confidenceEl.textContent = confPercent + '%';
+                    console.log('[REASONING] Set confidence to:', confPercent + '%');
+                }
+                
+                const reasoningEl = document.getElementById('actionReason');
+                if (reasoningEl) {
+                    reasoningEl.textContent = explanation;
+                    console.log('[REASONING] Set reasoning to:', explanation.substring(0, 50) + '...');
+                }
+                
+                // Update overall summary
+                const summaryEl = document.getElementById('summary');
+                if (summaryEl) {
+                    summaryEl.textContent = explanation;
+                }
+                
+                // Update Key Factors
+                const keyFactorsUl = document.getElementById('keyFactors');
+                if (keyFactorsUl) {
+                    if (Array.isArray(keyFactors) && keyFactors.length > 0) {
+                        const html = keyFactors.map(factor => `<li>${factor}</li>`).join('');
+                        keyFactorsUl.innerHTML = html;
+                        console.log('[REASONING] Set key factors:', keyFactors.length);
+                    } else {
+                        keyFactorsUl.innerHTML = '<li>Analysis based on video summary</li>';
+                    }
+                }
+                
+                // Update Detected Anomalies
+                const anomaliesUl = document.getElementById('anomalies');
+                if (anomaliesUl) {
+                    const anomalies = reasoningData.detected_anomalies || [];
+                    if (Array.isArray(anomalies) && anomalies.length > 0) {
+                        const html = anomalies.map(anomaly => `<li>${anomaly.replace(/_/g, ' ')}</li>`).join('');
+                        anomaliesUl.innerHTML = html;
+                        console.log('[REASONING] Set anomalies:', anomalies.length);
+                    } else {
+                        anomaliesUl.innerHTML = '<li>None detected</li>';
+                    }
+                }
+                
+                console.log('[REASONING] Display updated successfully');
+            } catch (error) {
+                console.error('[REASONING] Display error:', error);
+                console.error('[REASONING] Stack:', error.stack);
+            }
+        }
+        
+        const API_BASE = 'http://localhost:8000';
+        const VIDEO_API = 'http://localhost:8001';
+        const REALTIME_API = 'http://localhost:8002';
+        let useAPI = false;
+
+        
+        console.log('Dashboard script loading...');
+        console.log('API_BASE:', API_BASE);
+        console.log('VIDEO_API:', VIDEO_API);
+        console.log('REALTIME_API:', REALTIME_API);
+        
+        // Test scenario data
+        const scenarios = {
+            normal: {
+                perception: {
+                    weapon_detected: "unarmed",
+                    emotion: "neutral",
+                    tone: "calm",
+                    uniform_present: false,
+                    speech_present: true,
+                    keyword_flags: [],
+                    acoustic_events: []
+                },
+                reasoning: {
+                    threat_level: "medium",
+                    metrics: {
+                        weapon_threat_score: 0.0,
+                        emotion_threat_score: 0.0,
+                        audio_threat_score: 0.0,
+                        behavioral_anomaly_score: 0.4,
+                        combined_threat_score: 0.4,
+                        trend: "stable"
+                    },
+                    recommended_action: {
+                        action: "monitor",
+                        priority: "medium",
+                        confidence: 0.4,
+                        reason: "Baseline threat monitoring active"
+                    },
+                    explanation: {
+                        summary: "Normal civilian detected with calm demeanor",
+                        key_factors: ["Unarmed", "Calm tone", "Neutral emotion"],
+                        anomalies_detected: []
+                    }
+                }
+            },
+            armed: {
+                perception: {
+                    weapon_detected: "gun",
+                    emotion: "angry",
+                    tone: "threat",
+                    uniform_present: false,
+                    speech_present: true,
+                    keyword_flags: ["attack", "threat"],
+                    acoustic_events: []
+                },
+                reasoning: {
+                    threat_level: "critical",
+                    metrics: {
+                        weapon_threat_score: 1.0,
+                        emotion_threat_score: 0.9,
+                        audio_threat_score: 0.8,
+                        behavioral_anomaly_score: 0.95,
+                        combined_threat_score: 1.0,
+                        trend: "escalating"
+                    },
+                    recommended_action: {
+                        action: "immediate_alert",
+                        priority: "critical",
+                        confidence: 1.0,
+                        reason: "Critical threat detected: gun. Threat score: 1.00. Trend: escalating."
+                    },
+                    explanation: {
+                        summary: "Armed intruder with hostile intent detected",
+                        key_factors: ["Gun detected", "Angry emotion", "Threat keywords", "Escalating behavior"],
+                        anomalies_detected: ["weapon_anomaly", "emotional_distress", "hostile_keywords"]
+                    }
+                }
+            },
+            guard: {
+                perception: {
+                    weapon_detected: "gun",
+                    emotion: "calm",
+                    tone: "calm",
+                    uniform_present: true,
+                    speech_present: true,
+                    keyword_flags: [],
+                    acoustic_events: []
+                },
+                reasoning: {
+                    threat_level: "low",
+                    metrics: {
+                        weapon_threat_score: 1.0,
+                        emotion_threat_score: 0.0,
+                        audio_threat_score: 0.0,
+                        behavioral_anomaly_score: 0.0,
+                        combined_threat_score: 0.12,
+                        trend: "stable"
+                    },
+                    recommended_action: {
+                        action: "de_escalate",
+                        priority: "low",
+                        confidence: 0.12,
+                        reason: "Authorized security personnel detected. Weapon suppressed due to uniform."
+                    },
+                    explanation: {
+                        summary: "Security guard with authorized weapon",
+                        key_factors: ["Uniform detected", "Calm demeanor", "Weapon suppressed", "Authorized personnel"],
+                        anomalies_detected: []
+                    }
+                }
+            },
+            escalating: {
+                perception: {
+                    weapon_detected: "knife",
+                    emotion: "angry",
+                    tone: "threat",
+                    uniform_present: false,
+                    speech_present: true,
+                    keyword_flags: ["help", "attack"],
+                    acoustic_events: ["raised_voice"]
+                },
+                reasoning: {
+                    threat_level: "critical",
+                    metrics: {
+                        weapon_threat_score: 0.8,
+                        emotion_threat_score: 0.85,
+                        audio_threat_score: 0.9,
+                        behavioral_anomaly_score: 0.75,
+                        combined_threat_score: 1.0,
+                        trend: "escalating"
+                    },
+                    recommended_action: {
+                        action: "escalate",
+                        priority: "critical",
+                        confidence: 0.95,
+                        reason: "Escalating threat detected with temporal progression"
+                    },
+                    explanation: {
+                        summary: "Threat escalating from calm to violent intent",
+                        key_factors: ["Knife detected", "Angry emotion", "Threat keywords", "Rising audio intensity"],
+                        anomalies_detected: ["temporal_escalation", "weapon_threat", "emotional_escalation", "speech_anomaly"]
+                    }
+                }
+            }
+        };
+        
+        function displayData(perception, reasoning, videoResults = null) {
+            // Perception data
+            document.getElementById('weaponDetected').textContent = perception.weapon_detected || "—";
+            document.getElementById('emotion').textContent = perception.emotion || "—";
+            document.getElementById('tone').textContent = perception.tone || "—";
+            document.getElementById('uniformPresent').textContent = perception.uniform_present ? "Yes" : "No";
+            document.getElementById('speechPresent').textContent = perception.speech_present ? "Yes" : "No";
+            
+            // Audio detection
+            document.getElementById('keywords').textContent = perception.keyword_flags && perception.keyword_flags.length ? 
+                perception.keyword_flags.join(", ") : "None";
+            document.getElementById('acousticEvents').textContent = perception.acoustic_events && perception.acoustic_events.length ? 
+                perception.acoustic_events.join(", ") : "None";
+            
+            // Threat assessment
+            const threatLevel = reasoning.threat_level;
+            const threatBadge = `<span class="threat-level threat-${threatLevel}">${threatLevel.toUpperCase()}</span>`;
+            document.getElementById('threatLevel').innerHTML = threatBadge;
+            
+            // Metrics
+            document.getElementById('weaponScore').textContent = reasoning.metrics.weapon_threat_score.toFixed(2);
+            document.getElementById('emotionScore').textContent = reasoning.metrics.emotion_threat_score.toFixed(2);
+            document.getElementById('audioScore').textContent = reasoning.metrics.audio_threat_score.toFixed(2);
+            document.getElementById('behavioralScore').textContent = reasoning.metrics.behavioral_anomaly_score.toFixed(2);
+            document.getElementById('combinedScore').textContent = reasoning.metrics.combined_threat_score.toFixed(2);
+            document.getElementById('trend').textContent = reasoning.metrics.trend || "—";
+            
+            // Action & Recommendation
+            document.getElementById('action').textContent = reasoning.recommended_action.action.replace(/_/g, ' ').toUpperCase();
+            document.getElementById('priority').textContent = reasoning.recommended_action.priority.toUpperCase();
+            document.getElementById('confidence').textContent = (reasoning.recommended_action.confidence * 100).toFixed(0) + "%";
+            document.getElementById('actionReason').textContent = reasoning.recommended_action.reason;
+            
+            // Reasoning explanation
+            document.getElementById('summary').textContent = reasoning.explanation.summary;
+            
+            const keyFactorsList = document.getElementById('keyFactors');
+            keyFactorsList.innerHTML = reasoning.explanation.key_factors && reasoning.explanation.key_factors.length ?
+                reasoning.explanation.key_factors.map(f => `<li>${f}</li>`).join('') : '<li>None</li>';
+            
+            const anomaliesList = document.getElementById('anomalies');
+            anomaliesList.innerHTML = reasoning.explanation.anomalies_detected && reasoning.explanation.anomalies_detected.length ?
+                reasoning.explanation.anomalies_detected.map(a => `<li>${a.replace(/_/g, ' ')}</li>`).join('') : '<li>None</li>';
+            
+            // Call cloud reasoning with full video results (if available)
+            // This sends a summarized message instead of individual frames
+            if (videoResults && videoResults.detections && videoResults.detections.length > 0) {
+                console.log('[CLOUD_REASONING] Calling summary reasoning for full video analysis');
+                fetchCloudReasoningSummary(videoResults);
+            }
+        }
+        
+        function testScenario(scenario) {
+            const data = scenarios[scenario];
+            if (data) {
+                // Create synthetic video results for cloud reasoning
+                const syntheticResults = {
+                    video_id: `test_${scenario}`,
+                    processed_frames: 1,
+                    detections: [
+                        {
+                            perception: data.perception,
+                            reasoning: data.reasoning
+                        }
+                    ],
+                    summary: {
+                        overall_threat_level: data.reasoning.threat_level,
+                        recommended_action: data.reasoning.recommended_action.action
+                    }
+                };
+                
+                displayData(data.perception, data.reasoning, syntheticResults);
+                showMessage(`Loaded scenario: ${scenario}`, 'success');
+            }
+        }
+        
+        // ============================================================
+        // VIDEO TESTING FUNCTIONALITY (Real-Time Only)
+        // BATCH PROCESSING DISABLED - USING REAL-TIME FRAME ANALYSIS
+        // ============================================================
+        
+        let currentVideoResults = null;  // Not used with real-time
+        let currentFrameIndex = 0;       // Not used with real-time
+
+        function renderVideoSummary(summary, results) {
+            const panel = document.getElementById('videoSummaryPanel');
+            if (!panel) return;
+
+            if (!summary) {
+                panel.innerHTML = '<div style="color: #888;">No summary available for this video.</div>';
+                return;
+            }
+
+            const dist = summary.threat_distribution || {};
+            const traits = summary.dominant_traits || {};
+            const anomalies = summary.top_anomalies || [];
+            const anomalyText = anomalies.length
+                ? anomalies.map(a => `${a.name} (${a.count})`).join(', ')
+                : 'None';
+
+            panel.innerHTML = `
+                <div><strong>Overall Threat:</strong> ${(summary.overall_threat_level || 'medium').toUpperCase()}</div>
+                <div><strong>Avg Score:</strong> ${Number(summary.overall_threat_score || 0).toFixed(2)} | <strong>Peak:</strong> ${Number(summary.peak_threat_score || 0).toFixed(2)}</div>
+                <div><strong>Recommended Action:</strong> ${(summary.recommended_action || 'monitor').replace(/_/g, ' ').toUpperCase()}</div>
+                <div><strong>Priority:</strong> ${(summary.priority || 'medium').toUpperCase()} | <strong>Confidence:</strong> ${(Number(summary.confidence || 0) * 100).toFixed(0)}%</div>
+                <div><strong>Frames:</strong> ${summary.total_detection_frames || (results?.detections?.length || 0)}</div>
+                <div><strong>Threat Distribution:</strong> L:${dist.low || 0} M:${dist.medium || 0} H:${dist.high || 0} C:${dist.critical || 0}</div>
+                <div><strong>Dominant Traits:</strong> weapon=${traits.weapon || 'unknown'}, emotion=${traits.emotion || 'unknown'}, tone=${traits.tone || 'unknown'}</div>
+                <div><strong>Weapon Frame Ratio:</strong> ${(Number(summary.weapon_frame_ratio || 0) * 100).toFixed(0)}%</div>
+                <div><strong>Top Anomalies:</strong> ${anomalyText}</div>
+                <div style="margin-top: 8px; color: #d2f5e6;">${summary.summary_text || ''}</div>
+            `;
+        }
+
+        function applyVideoSummaryToMainPanels(summary) {
+            if (!summary) return;
+
+            const overallThreat = (summary.overall_threat_level || 'medium').toLowerCase();
+            const threatBadge = `<span class="threat-level threat-${overallThreat}">${overallThreat.toUpperCase()}</span>`;
+            document.getElementById('threatLevel').innerHTML = threatBadge;
+
+            document.getElementById('weaponDetected').textContent = summary.dominant_traits?.weapon || '—';
+            document.getElementById('emotion').textContent = summary.dominant_traits?.emotion || '—';
+            document.getElementById('tone').textContent = summary.dominant_traits?.tone || '—';
+            document.getElementById('uniformPresent').textContent = (Number(summary.uniform_frame_ratio || 0) >= 0.5) ? 'Yes' : 'No';
+
+            document.getElementById('weaponScore').textContent = Number(summary.weapon_frame_ratio || 0).toFixed(2);
+            document.getElementById('emotionScore').textContent = Number(summary.overall_threat_score || 0).toFixed(2);
+            document.getElementById('audioScore').textContent = Number(summary.peak_threat_score || 0).toFixed(2);
+            document.getElementById('behavioralScore').textContent = Number(summary.confidence || 0).toFixed(2);
+            document.getElementById('combinedScore').textContent = Number(summary.overall_threat_score || 0).toFixed(2);
+            document.getElementById('trend').textContent = 'video-aggregated';
+
+            document.getElementById('action').textContent = (summary.recommended_action || 'monitor').replace(/_/g, ' ').toUpperCase();
+            document.getElementById('priority').textContent = (summary.priority || 'medium').toUpperCase();
+            document.getElementById('confidence').textContent = (Number(summary.confidence || 0) * 100).toFixed(0) + '%';
+            document.getElementById('actionReason').textContent = summary.summary_text || 'Video-level summary generated';
+
+            document.getElementById('summary').textContent = summary.summary_text || 'No summary available';
+            const anomalies = summary.top_anomalies || [];
+            document.getElementById('anomalies').innerHTML = anomalies.length
+                ? anomalies.map(a => `<li>${a.name} (${a.count})</li>`).join('')
+                : '<li>None</li>';
+
+            const keyFactors = [
+                `Overall Threat: ${(summary.overall_threat_level || 'medium').toUpperCase()}`,
+                `Recommended Action: ${(summary.recommended_action || 'monitor').replace(/_/g, ' ').toUpperCase()}`,
+                `Frames Processed: ${summary.total_detection_frames || 0}`,
+                `Weapon Ratio: ${(Number(summary.weapon_frame_ratio || 0) * 100).toFixed(0)}%`
+            ];
+            document.getElementById('keyFactors').innerHTML = keyFactors.map(f => `<li>${f}</li>`).join('');
+        }
+        
+        function switchTab(tab) {
+            console.log('=== SWITCH TAB CALLED ===', 'tab:', tab);
+            try {
+                // Hide all tabs
+                const scenariosTab = document.getElementById('tab-content-scenarios');
+                const videoTab = document.getElementById('tab-content-video');
+                
+                console.log('Tab elements found - scenarios:', !!scenariosTab, 'video:', !!videoTab);
+                
+                if (scenariosTab) scenariosTab.style.display = 'none';
+                if (videoTab) videoTab.style.display = 'none';
+                
+                // Deactivate all buttons
+                const scenariosBtn = document.getElementById('tab-scenarios');
+                const videoBtn = document.getElementById('tab-video');
+                
+                console.log('Button elements found - scenarios:', !!scenariosBtn, 'video:', !!videoBtn);
+                
+                if (scenariosBtn) scenariosBtn.classList.remove('active');
+                if (videoBtn) videoBtn.classList.remove('active');
+                
+                // Show selected tab
+                if (tab === 'scenarios') {
+                    if (scenariosTab) {
+                        scenariosTab.style.display = 'block';
+                        console.log('✓ Scenarios tab shown');
+                    }
+                    if (scenariosBtn) {
+                        scenariosBtn.classList.add('active');
+                        console.log('✓ Scenarios button activated');
+                    }
+                } else if (tab === 'video') {
+                    if (videoTab) {
+                        videoTab.style.display = 'block';
+                        console.log('✓ Video tab shown');
+                    }
+                    if (videoBtn) {
+                        videoBtn.classList.add('active');
+                        console.log('✓ Video button activated');
+                    }
+                    // Load video list
+                    console.log('Loading video list...');
+                    loadVideoList();
+                } else {
+                    console.error('Unknown tab:', tab);
+                }
+                console.log('=== SWITCH TAB COMPLETE ===');
+            } catch (error) {
+                console.error('ERROR in switchTab:', error, error.stack);
+                showMessage('Error switching tabs: ' + error.message, 'error');
+            }
+        }
+        
+        async function loadVideoList() {
+            try {
+                console.log('=== LOAD VIDEO LIST ===');
+                console.log('loadVideoList called, VIDEO_API =', VIDEO_API);
+                const videoList = document.getElementById('videoList');
+                
+                if (!videoList) {
+                    console.error('❌ videoList element not found in DOM');
+                    showMessage('UI Error: videoList element missing', 'error');
+                    return;
+                }
+                
+                console.log('✓ videoList element found');
+                videoList.innerHTML = '<div style="padding: 10px; color: #ffff00;">⏳ Fetching videos from ' + VIDEO_API + '...</div>';
+                
+                const url = `${VIDEO_API}/api/videos`;
+                console.log('Fetching from URL:', url);
+                
+                const response = await fetch(url);
+                console.log('Response status:', response.status);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                console.log('Video list data received:', data);
+                
+                if (data.videos && data.videos.length > 0) {
+                    console.log('✓ Found', data.videos.length, 'videos');
+                    const html = data.videos.map(v => `
+                        <div style="padding: 8px; border-bottom: 1px solid #333; cursor: pointer; color: #00d4ff;" onclick="selectVideo('${v.name.replace(/'/g, "\\'")}')">
+                            <div style="font-weight: bold;">${v.name}</div>
+                            <div style="font-size: 0.75rem; color: #888;">${v.size_mb.toFixed(1)}MB</div>
+                        </div>
+                    `).join('');
+                    videoList.innerHTML = html;
+                    console.log('✓ Video list HTML updated in DOM');
+                } else {
+                    console.log('⚠️  No videos found in response');
+                    videoList.innerHTML = '<div style="padding: 10px; color: #888;">No videos found. Add .mp4, .avi, .mov files to the videos/ folder.</div>';
+                }
+                
+                showMessage('✓ Video list loaded (' + (data.videos ? data.videos.length : 0) + ' videos)', 'success');
+                console.log('=== LOAD VIDEO LIST COMPLETE ===');
+            } catch (error) {
+                console.error('=== ERROR IN LOAD VIDEO LIST ===');
+                console.error('Error:', error);
+                console.error('Error stack:', error.stack);
+                const videoList = document.getElementById('videoList');
+                if (videoList) {
+                    videoList.innerHTML = `<div style="padding: 10px; color: #ff6666;">❌ Error: ${error.message}<br/><small>Make sure video API is running on ${VIDEO_API}</small><br/><small>Check browser console (F12) for details</small></div>`;
+                }
+                showMessage('❌ Error loading videos: ' + error.message, 'error');
+            }
+        }
+        
+        // ============================================================
+        // VIDEO UPLOAD FUNCTIONALITY
+        // ============================================================
+        
+        let selectedUploadFile = null;
+        
+        // Handle file selection
+        document.addEventListener('DOMContentLoaded', function() {
+            const fileInput = document.getElementById('videoFileUpload');
+            if (fileInput) {
+                fileInput.addEventListener('change', function(e) {
+                    selectedUploadFile = e.target.files[0];
+                    if (selectedUploadFile) {
+                        const uploadStatus = document.getElementById('uploadStatus');
+                        const uploadBtn = document.getElementById('uploadBtn');
+                        if (uploadStatus) {
+                            uploadStatus.innerHTML = `<strong>${selectedUploadFile.name}</strong><br>Size: ${(selectedUploadFile.size / (1024*1024)).toFixed(1)} MB`;
+                            uploadStatus.style.color = '#00ff00';
+                        }
+                        if (uploadBtn) {
+                            uploadBtn.style.display = 'block';
+                        }
+                    }
+                });
+            }
+        });
+        
+        async function uploadVideo() {
+            if (!selectedUploadFile) {
+                showMessage('❌ Please select a video file first', 'error');
+                return;
+            }
+            
+            const uploadStatus = document.getElementById('uploadStatus');
+            const uploadBtn = document.getElementById('uploadBtn');
+            
+            try {
+                if (uploadStatus) {
+                    uploadStatus.innerHTML = '⏳ Uploading...';
+                    uploadStatus.style.color = '#ffff00';
+                }
+                if (uploadBtn) {
+                    uploadBtn.disabled = true;
+                }
+                
+                // Create FormData for multipart upload
+                const formData = new FormData();
+                formData.append('file', selectedUploadFile);
+                
+                console.log('[UPLOAD] Uploading file:', selectedUploadFile.name);
+                
+                // POST to upload endpoint
+                const response = await fetch(`${API_BASE}/api/videos/upload`, {
+                    method: 'POST',
+                    body: formData  // Don't set Content-Type header - browser will set it correctly
+                });
+                
+                console.log('[UPLOAD] Response status:', response.status);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Upload failed: ${response.status} - ${errorText}`);
+                }
+                
+                const result = await response.json();
+                console.log('[UPLOAD] Upload result:', result);
+                
+                if (uploadStatus) {
+                    uploadStatus.innerHTML = `<strong style="color: #00ff00;">✓ Upload Complete!</strong><br>${selectedUploadFile.name}`;
+                    uploadStatus.style.color = '#00ff00';
+                }
+                
+                showMessage(`✓ Video uploaded successfully: ${selectedUploadFile.name}`, 'success');
+                
+                // Reset upload UI
+                selectedUploadFile = null;
+                document.getElementById('videoFileUpload').value = '';
+                if (uploadBtn) {
+                    uploadBtn.style.display = 'none';
+                    uploadBtn.disabled = false;
+                }
+                
+                // Reload video list
+                setTimeout(() => {
+                    loadVideoList();
+                }, 500);
+                
+            } catch (error) {
+                console.error('[UPLOAD] Error:', error);
+                if (uploadStatus) {
+                    uploadStatus.innerHTML = `<strong style="color: #ff6666;">❌ Upload Failed</strong><br>${error.message}`;
+                    uploadStatus.style.color = '#ff6666';
+                }
+                showMessage(`❌ Upload error: ${error.message}`, 'error');
+                if (uploadBtn) {
+                    uploadBtn.disabled = false;
+                }
+            }
+        }
+        
+        let selectedVideo = null;
+        
+        // ============================================================
+        // ORIGINAL FUNCTIONALITY
+        // ============================================================
+        
+        async function loadFromAPI() {
+            if (!useAPI) {
+                showMessage('API mode is disabled. Click "Enable API Mode" to use live API.', 'error');
+                return;
+            }
+            
+            const msgContainer = document.getElementById('messageContainer');
+            msgContainer.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading from API...</p></div>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/reasoning/state`, {
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`API Error: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                // Display the state data
+                showMessage('Data loaded from API successfully', 'success');
+                msgContainer.innerHTML = '';
+            } catch (error) {
+                showMessage(`API Error: ${error.message}`, 'error');
+                msgContainer.innerHTML = '';
+            }
+        }
+        
+        function toggleAPI() {
+            useAPI = !useAPI;
+            document.getElementById('apiToggleText').textContent = useAPI ? '🔌 Disable API Mode' : '🔌 Enable API Mode';
+            showMessage(useAPI ? 'API Mode ENABLED' : 'API Mode DISABLED', 'success');
+        }
+        
+        function showMessage(text, type) {
+            const container = document.getElementById('messageContainer');
+            const className = type === 'error' ? 'error-message' : 'success-message';
+            container.innerHTML = `<div class="${className}">${text}</div>`;
+            setTimeout(() => {
+                container.innerHTML = '';
+            }, 4000);
+        }
+        
+        function reset() {
+            document.getElementById('messageContainer').innerHTML = '';
+            displayData(
+                {weapon_detected: "—", emotion: "—", tone: "—", uniform_present: false, speech_present: false, keyword_flags: [], acoustic_events: []},
+                {threat_level: "low", metrics: {weapon_threat_score: 0, emotion_threat_score: 0, audio_threat_score: 0, behavioral_anomaly_score: 0, combined_threat_score: 0, trend: "stable"}, 
+                 recommended_action: {action: "all_clear", priority: "low", confidence: 0, reason: "Reset"}, 
+                 explanation: {summary: "Display reset", key_factors: [], anomalies_detected: []}}
+            );
+            showMessage('Display reset', 'success');
+        }
+        
+        // ============================================================
+        // REAL-TIME VIDEO ANALYSIS
+        // ============================================================
+        
+        let realtimeVideoId = null;
+        let realtimeVideoMetadata = null;
+        let estimatedFramesToAnalyze = 0; // Track how many frames we expect to analyze
+        let analyzingFrames = new Set(); // Track frames being analyzed
+        let frameAnalysisCache = {}; // Cache analysis results
+        
+        // Detection tracking for summary (instead of per-frame reasoning)
+        let detectionSummary = {
+            total_frames_analyzed: 0,
+            weapons_detected: [],
+            threat_events: [],
+            highest_threat_level: 'LOW',
+            critical_frames: [],
+            analysis_text: ''
+        };
+        
+        async function loadRealtimeVideo(videoName) {
+            // Load video metadata and prepare for real-time analysis
+            try {
+                console.log(`[REALTIME] Loading video: ${videoName}`);
+                showMessage(`Loading video: ${videoName}...`, 'success');
+                
+                const response = await fetch(`${REALTIME_API}/api/realtime/load/${encodeURIComponent(videoName)}`);
+                if (!response.ok) {
+                    throw new Error(`Failed to load video: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                realtimeVideoId = data.video_id;
+                realtimeVideoMetadata = {
+                    total_frames: data.total_frames,
+                    fps: data.fps,
+                    duration_sec: data.duration_sec
+                };
+                
+                console.log(`[REALTIME] Video loaded: ${data.total_frames} frames @ ${data.fps} FPS`);
+                showMessage(`✓ Video loaded: ${data.total_frames} frames @ ${data.fps.toFixed(1)} FPS. Click Play to start real-time analysis!`, 'success');
+                
+                // Clear old cache and reset detection summary
+                frameAnalysisCache = {};
+                detectionSummary = {
+                    total_frames_analyzed: 0,
+                    weapons_detected: [],
+                    threat_events: [],
+                    highest_threat_level: 'LOW',
+                    critical_frames: [],
+                    analysis_text: ''
+                };
+                
+                // Update UI
+                document.getElementById('frameSlider').max = Math.max(0, realtimeVideoMetadata.total_frames - 1);
+                document.getElementById('statusText').textContent = 'Ready';
+                document.getElementById('statusFrames').textContent = '0';
+                
+                return true;
+            } catch (error) {
+                console.error('[REALTIME] Error loading video:', error);
+                showMessage(`Error loading video: ${error.message}`, 'error');
+                return false;
+            }
+        }
+        
+        // Aggregate detection data for summary instead of per-frame reasoning
+        function aggregateDetection(analysisData) {
+            try {
+                const perception = analysisData.perception || {};
+                const reasoning = analysisData.reasoning || {};
+                const weapon = perception.weapon_detected;
+                const threatLevel = (reasoning.threat_level || 'LOW').toUpperCase();
+                const confidence = perception.confidence || reasoning.confidence || 0;
+                const frameNum = analysisData.frame_number || 0;
+                
+                // Track weapon detections
+                if (weapon && weapon !== 'unarmed') {
+                    detectionSummary.weapons_detected.push({
+                        type: weapon,
+                        confidence: confidence,
+                        threat_level: threatLevel,
+                        frame: frameNum
+                    });
+                    
+                    // Track by threat level
+                    detectionSummary.threat_events.push({
+                        type: weapon,
+                        severity: threatLevel,
+                        frame: frameNum
+                    });
+                    
+                    // Update highest threat
+                    const threatPriority = { 'CRITICAL': 3, 'HIGH': 2, 'MEDIUM': 1, 'LOW': 0 };
+                    const currentPriority = threatPriority[detectionSummary.highest_threat_level] || 0;
+                    const newPriority = threatPriority[threatLevel] || 0;
+                    if (newPriority > currentPriority) {
+                        detectionSummary.highest_threat_level = threatLevel;
+                        detectionSummary.critical_frames.push(frameNum);
+                    }
+                }
+                
+                detectionSummary.total_frames_analyzed++;
+                
+            } catch (error) {
+                console.error('[AGGREGATION] Error aggregating detection:', error);
+            }
+        }
+        
+        // Build human-readable summary of detections
+        function buildDetectionSummary() {
+            let summary = `Video Analysis Summary:\n`;
+            summary += `- Total Frames Analyzed: ${detectionSummary.total_frames_analyzed}\n`;
+            
+            if (detectionSummary.weapons_detected.length > 0) {
+                summary += `- Weapons Detected: ${detectionSummary.weapons_detected.length}\n`;
+                detectionSummary.weapons_detected.forEach((weapon, idx) => {
+                    summary += `  ${idx + 1}. ${weapon.type} (${weapon.threat_level}, ${(weapon.confidence * 100).toFixed(0)}% confidence) at frame ${weapon.frame}\n`;
+                });
+            } else {
+                summary += `- Weapons Detected: None\n`;
+            }
+            
+            summary += `- Highest Threat Level: ${detectionSummary.highest_threat_level}\n`;
+            summary += `- Critical Frames: ${detectionSummary.critical_frames.length > 0 ? detectionSummary.critical_frames.join(', ') : 'None'}\n`;
+            
+            return summary;
+        }
+        
+        // Send summarized detections to cloud reasoning (called once at end of video analysis)
+        async function sendSummaryToReasoning() {
+            try {
+                if (detectionSummary.total_frames_analyzed === 0) {
+                    console.log('[REASONING] No frames analyzed, skipping cloud reasoning');
+                    return;
+                }
+                
+                // Build summary text
+                const summaryText = buildDetectionSummary();
+                detectionSummary.analysis_text = summaryText;
+                
+                console.log('[REASONING] Detection summary:', detectionSummary);
+                
+            } catch (error) {
+                console.error('[REASONING] Error preparing summary for cloud:', error);
+            }
+        }
+        
+        async function analyzeFrameRealtime(frameNum) {
+            // Analyze a single frame in real-time with timeout
+            
+            if (!realtimeVideoId || !selectedVideo) {
+                console.log('[REALTIME] No video loaded');
+                return null;
+            }
+            
+            // Check cache first
+            if (frameAnalysisCache[frameNum]) {
+                console.log(`[REALTIME] Frame ${frameNum} served from cache`);
+                return frameAnalysisCache[frameNum];
+            }
+            
+            // Avoid duplicate analysis requests
+            if (analyzingFrames.has(frameNum)) {
+                console.log(`[REALTIME] Frame ${frameNum} already being analyzed`);
+                return null;
+            }
+            
+            analyzingFrames.add(frameNum);
+            
+            try {
+                console.log(`[REALTIME] Analyzing frame ${frameNum}...`);
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout for faster feedback
+                
+                const response = await fetch(
+                    `${REALTIME_API}/api/realtime/analyze/${encodeURIComponent(selectedVideo)}/${frameNum}?video_id=${realtimeVideoId}`,
+                    { signal: controller.signal }
+                );
+                
+                clearTimeout(timeoutId);
+                
+                if (!response.ok) {
+                    throw new Error(`Analysis failed: ${response.status} ${response.statusText}`);
+                }
+                
+                const analysis = await response.json();
+                
+                // Cache the result
+                frameAnalysisCache[frameNum] = analysis;
+                analyzingFrames.delete(frameNum);
+                
+                console.log(`[REALTIME] Frame ${frameNum} analyzed`, analysis);
+                return analysis;
+            } catch (error) {
+                console.error(`[REALTIME] Error analyzing frame ${frameNum}:`, error);
+                analyzingFrames.delete(frameNum);
+                return null;
+            }
+        }
+        
+        let lastAnalyzedFrame = null;  // Cache the last successful analysis for skipped frames
+        
+        async function displayRealtimeFrame(frameNum) {
+            // Display and analyze a frame in real-time
+            
+            if (!realtimeVideoMetadata) return;
+            
+            // Clamp frame number to valid range
+            frameNum = Math.max(0, Math.min(frameNum, realtimeVideoMetadata.total_frames - 1));
+            
+            // Update slider position to show where we are in the video
+            document.getElementById('frameSlider').value = frameNum;
+            
+            // Show analyzing status
+            const canvas = document.getElementById('videoCanvas');
+            const ctx = canvas.getContext('2d');
+            const status = document.getElementById('videoStatus');
+            if (status) {
+                status.style.display = 'block';
+                status.textContent = `Analyzing frame ${frameNum}... (max 10 seconds)`;
+            }
+            
+            // Analyze frame
+            const analysis = await analyzeFrameRealtime(frameNum);
+            
+            if (!analysis) {
+                console.error('[REALTIME] Failed to get analysis for frame', frameNum);
+                
+                // Use last successful analysis if available (for visual continuity)
+                if (lastAnalyzedFrame) {
+                    console.log('[REALTIME] Using last successful analysis for visual continuity');
+                    displayFrameImage(lastAnalyzedFrame);
+                    updateDetectionInfo(lastAnalyzedFrame);
+                    if (status) {
+                        status.style.display = 'block';
+                        status.textContent = `Frame ${frameNum} (showing last detection result)`;
+                    }
+                    return;
+                }
+                
+                if (status) {
+                    status.style.display = 'block';
+                    status.textContent = `Failed to analyze frame ${frameNum}. Check that port 8002 is running. See F12 console for details.`;
+                }
+                return;
+            }
+            
+            // Store successful analysis for continuity
+            lastAnalyzedFrame = analysis;
+            
+            // Validate frame_data exists
+            if (!analysis.frame_data) {
+                console.error('[REALTIME] No frame_data in analysis response');
+                if (status) {
+                    status.style.display = 'block';
+                    status.textContent = 'Frame data missing from server response.';
+                }
+                return;
+            }
+            
+            // Display the frame image and update detection info
+            displayFrameImage(analysis);
+            updateDetectionInfo(analysis);
+            
+            // Update frames processed counter
+            const framesAnalyzed = Object.keys(frameAnalysisCache).length;
+            document.getElementById('statusFrames').textContent = framesAnalyzed;
+            // Progress bar based on analyzed frames vs estimated frames
+            const progressPercent = estimatedFramesToAnalyze > 0 ? (framesAnalyzed / estimatedFramesToAnalyze) * 100 : 0;
+            document.querySelector('#progressBar > div').style.width = `${Math.min(progressPercent, 100)}%`;
+            
+            // Generate video summary as we analyze
+            generateVideoSummary();
+        }
+        
+        function displayFrameImage(analysis) {
+            // Display frame image on canvas with threat indicator
+            const canvas = document.getElementById('videoCanvas');
+            const ctx = canvas.getContext('2d');
+            const status = document.getElementById('videoStatus');
+            const img = new Image();
+            
+            img.onload = () => {
+                console.log('[REALTIME] Frame image loaded successfully');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                ctx.drawImage(img, 0, 0);
+                
+                // Hide status text
+                if (status) {
+                    status.style.display = 'none';
+                }
+                
+                // Draw threat indicator border
+                const threatLevel = (analysis.reasoning.threat_level || 'medium').toLowerCase();
+                const threatColor = {
+                    'low': '#00aa00',
+                    'medium': '#ffaa00',
+                    'high': '#ff5500',
+                    'critical': '#ff0000'
+                }[threatLevel] || '#888';
+                
+                ctx.strokeStyle = threatColor;
+                ctx.lineWidth = 4;
+                ctx.strokeRect(10, 10, img.width - 20, img.height - 20);
+                
+                // Draw threat label on frame
+                ctx.fillStyle = threatColor;
+                ctx.font = 'bold 24px Arial';
+                ctx.fillText(threatLevel.toUpperCase(), 20, 50);
+            };
+            
+            img.onerror = () => {
+                console.error('[REALTIME] Failed to load frame image');
+                if (status) {
+                    status.style.display = 'block';
+                    status.textContent = 'Failed to load frame image. Check if frame data is valid.';
+                }
+            };
+            
+            img.src = analysis.frame_data;
+        }
+        
+        function updateDetectionInfo(analysis) {
+            // Aggregate this detection for summary (not per-frame reasoning)
+            aggregateDetection(analysis);
+            
+            // Update detection info panels with frame analysis data
+            const perception = analysis.perception;
+            const reasoning = analysis.reasoning;
+            
+            document.getElementById('frameWeapon').textContent = perception.weapon_detected || '—';
+            document.getElementById('frameEmotion').textContent = perception.emotion || '—';
+            document.getElementById('frameTone').textContent = perception.tone || '—';
+            document.getElementById('frameUniform').textContent = perception.uniform_present ? 'Yes' : 'No';
+            
+            const threatLevel = (reasoning.threat_level || 'medium').toLowerCase();
+            const threatScore = Number(reasoning.threat_score || 0);
+            const confidence = Number(reasoning.confidence || 0);
+            
+            document.getElementById('frameThreat').textContent = threatLevel.toUpperCase();
+            document.getElementById('frameScore').textContent = threatScore.toFixed(2);
+            document.getElementById('frameAction').textContent = (reasoning.action || 'monitor').replace(/_/g, ' ').toUpperCase();
+            document.getElementById('frameConfidence').textContent = (confidence * 100).toFixed(0) + '%';
+            
+            // Update main threat assessment
+            document.getElementById('threatLevel').innerHTML = `<span class="threat-level threat-${threatLevel}">${threatLevel.toUpperCase()}</span>`;
+            document.getElementById('weaponDetected').textContent = perception.weapon_detected || '—';
+            document.getElementById('emotion').textContent = perception.emotion || '—';
+            document.getElementById('tone').textContent = perception.tone || '—';
+            document.getElementById('weaponScore').textContent = reasoning.metrics?.weapon_score?.toFixed(2) || '0.00';
+            document.getElementById('emotionScore').textContent = reasoning.metrics?.emotion_score?.toFixed(2) || '0.00';
+            document.getElementById('audioScore').textContent = reasoning.metrics?.audio_score?.toFixed(2) || '0.00';
+            document.getElementById('behavioralScore').textContent = reasoning.metrics?.behavioral_score?.toFixed(2) || '0.00';
+            document.getElementById('combinedScore').textContent = threatScore.toFixed(2);
+            
+            // Update frames processed counter
+            const framesAnalyzed = Object.keys(frameAnalysisCache).length;
+            document.getElementById('frameCounter').textContent = framesAnalyzed;
+            document.getElementById('statusFrames').textContent = framesAnalyzed;
+            // Progress bar based on analyzed frames vs estimated frames
+            const progressPercent = estimatedFramesToAnalyze > 0 ? (framesAnalyzed / estimatedFramesToAnalyze) * 100 : 0;
+            document.querySelector('#progressBar > div').style.width = `${Math.min(progressPercent, 100)}%`;
+            
+            // Generate video summary as we analyze
+            generateVideoSummary();
+        }
+        
+        function generateVideoSummary() {
+            // Generate a comprehensive summary from all analyzed frames
+            const analyzedFrameNumbers = Object.keys(frameAnalysisCache).map(k => parseInt(k)).sort((a, b) => a - b);
+            
+            if (analyzedFrameNumbers.length === 0) {
+                return; // No frames analyzed yet
+            }
+            
+            // Collect statistics from all analyzed frames
+            let weaponDetections = 0;
+            let threatCounts = { low: 0, medium: 0, high: 0, critical: 0 };
+            let totalThreatScore = 0;
+            let emotionCounts = {};
+            let uniformPresent = 0;
+            let highestThreatFrame = null;
+            let highestThreatScore = 0;
+            
+            Object.values(frameAnalysisCache).forEach(analysis => {
+                if (!analysis) return;
+                
+                const perception = analysis.perception || {};
+                const reasoning = analysis.reasoning || {};
+                
+                // Count weapon detections
+                if (perception.weapon_detected && perception.weapon_detected !== 'unarmed') {
+                    weaponDetections++;
+                }
+                
+                // Count threat levels
+                const threatLevel = (reasoning.threat_level || 'medium').toLowerCase();
+                if (threatCounts.hasOwnProperty(threatLevel)) {
+                    threatCounts[threatLevel]++;
+                }
+                
+                // Track threat scores
+                const threatScore = Number(reasoning.threat_score || 0);
+                totalThreatScore += threatScore;
+                if (threatScore > highestThreatScore) {
+                    highestThreatScore = threatScore;
+                    highestThreatFrame = analysis;
+                }
+                
+                // Count emotions
+                const emotion = perception.emotion || 'unknown';
+                emotionCounts[emotion] = (emotionCounts[emotion] || 0) + 1;
+                
+                // Count uniforms
+                if (perception.uniform_present) {
+                    uniformPresent++;
+                }
+            });
+            
+            // Calculate statistics
+            const totalFrames = analyzedFrameNumbers.length;
+            const avgThreatScore = (totalThreatScore / totalFrames).toFixed(2);
+            const weaponDetectionRate = ((weaponDetections / totalFrames) * 100).toFixed(1);
+            const uniformRate = ((uniformPresent / totalFrames) * 100).toFixed(1);
+            
+            // Find most common emotion
+            let mostCommonEmotion = 'unknown';
+            let maxEmotionCount = 0;
+            for (const [emotion, count] of Object.entries(emotionCounts)) {
+                if (count > maxEmotionCount) {
+                    maxEmotionCount = count;
+                    mostCommonEmotion = emotion;
+                }
+            }
+            
+            // Determine overall threat level
+            let overallThreat = 'low';
+            if (threatCounts.critical > 0) overallThreat = 'critical';
+            else if (threatCounts.high > 0) overallThreat = 'high';
+            else if (threatCounts.medium > 0) overallThreat = 'medium';
+            
+            // Build local statistics HTML
+            const statsHTML = `
+                <div style="font-size: 0.85rem; color: #bbb; line-height: 1.8;">
+                    <div><strong>Total Frames Analyzed:</strong> ${totalFrames}</div>
+                    <div><strong>Weapon Detected:</strong> ${weaponDetections} frames (${weaponDetectionRate}%)</div>
+                    <div><strong>Uniform Present:</strong> ${uniformPresent} frames (${uniformRate}%)</div>
+                    <div><strong>Average Threat Score:</strong> ${avgThreatScore}</div>
+                    <div><strong>Most Common Emotion:</strong> ${mostCommonEmotion}</div>
+                    <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #003d6b;">
+                        <div><strong>Threat Distribution:</strong></div>
+                        <div style="margin-left: 10px; font-size: 0.8rem; color: #888;">
+                            <div>🟢 Low: ${threatCounts.low} (${((threatCounts.low/totalFrames)*100).toFixed(0)}%)</div>
+                            <div>🟡 Medium: ${threatCounts.medium} (${((threatCounts.medium/totalFrames)*100).toFixed(0)}%)</div>
+                            <div>🟠 High: ${threatCounts.high} (${((threatCounts.high/totalFrames)*100).toFixed(0)}%)</div>
+                            <div>🔴 Critical: ${threatCounts.critical} (${((threatCounts.critical/totalFrames)*100).toFixed(0)}%)</div>
+                        </div>
+                    </div>
+                    <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #003d6b;">
+                        <div><strong>Overall Assessment:</strong> <span style="color: ${overallThreat === 'critical' ? '#ff0000' : overallThreat === 'high' ? '#ff5500' : overallThreat === 'medium' ? '#ffaa00' : '#00aa00'}; font-weight: bold;">${overallThreat.toUpperCase()}</span></div>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('videoSummaryPanel').innerHTML = statsHTML;
+            
+            // NOW call cloud reasoning AFTER displaying the summary
+            console.log('[MAIN] Calling cloud reasoning...');
+            callCloudReasoning();
+        }
+        
+        async function callCloudReasoning() {
+            // Call cloud reasoning for comprehensive video summary and recommendations
+            console.log('[CLOUD_REASONING] callCloudReasoning invoked');
+            console.log('[CLOUD_REASONING] realtimeVideoId:', realtimeVideoId);
+            console.log('[CLOUD_REASONING] selectedVideo:', selectedVideo);
+            console.log('[CLOUD_REASONING] frameAnalysisCache size:', Object.keys(frameAnalysisCache).length);
+            
+            if (!realtimeVideoId) {
+                console.error('[CLOUD_REASONING] ❌ No video ID set! Cannot call cloud reasoning');
+                console.error('[CLOUD_REASONING] realtimeVideoId is:', typeof realtimeVideoId === 'object' ? JSON.stringify(realtimeVideoId) : realtimeVideoId);
+                showMessage('⚠️ No video ID - cloud reasoning skipped', 'error');
+                return;
+            }
+            
+            if (Object.keys(frameAnalysisCache).length === 0) {
+                console.warn('[CLOUD_REASONING] ⚠️  No frames in cache! Returning fallback response.');
+                // Don't error out - backend has fallback logic
+            }
+            
+            try {
+                console.log('[CLOUD_REASONING] Calling cloud reasoning for video summary...');
+                console.log('[CLOUD_REASONING] Video ID:', realtimeVideoId);
+                console.log('[CLOUD_REASONING] API URL:', REALTIME_API);
+                
+                const url = `${REALTIME_API}/api/realtime/summarize/${encodeURIComponent(realtimeVideoId)}`;
+                console.log('[CLOUD_REASONING] Full URL:', url);
+                
+                const response = await fetch(url);
+                console.log('[CLOUD_REASONING] Response status:', response.status);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('[CLOUD_REASONING] ❌ Response not OK (HTTP ' + response.status + ')');
+                    console.error('[CLOUD_REASONING] Error response:', errorText);
+                    throw new Error(`Cloud reasoning error: ${response.status} ${errorText}`);
+                }
+                
+                const summary = await response.json();
+                console.log('[CLOUD_REASONING] ✓ Received summary:', summary);
+                
+                // Check if we got valid data
+                if (!summary || (!summary.recommended_action && !summary.action)) {
+                    console.warn('[CLOUD_REASONING] No recommended_action in response:', summary);
+                }
+                
+                // Update main panels with reasoning output
+                // Handle both old format (object) and new format (string fields)
+                const actionValue = summary.recommended_action || summary.action || '—';
+                const actionText = typeof actionValue === 'string' ? actionValue : (actionValue.action || '—');
+                if (actionText && actionText !== '—') {
+                    console.log('[CLOUD_REASONING] Setting action:', actionText);
+                    document.getElementById('action').textContent = actionText.replace(/_/g, ' ').toUpperCase();
+                } else {
+                    console.warn('[CLOUD_REASONING] No recommended_action field');
+                }
+                
+                const priorityValue = summary.priority || summary.recommended_action?.priority || '—';
+                const priorityText = typeof priorityValue === 'string' ? priorityValue : (priorityValue || '—');
+                if (priorityText && priorityText !== '—') {
+                    console.log('[CLOUD_REASONING] Setting priority:', priorityText);
+                    document.getElementById('priority').textContent = priorityText.toUpperCase();
+                } else {
+                    console.warn('[CLOUD_REASONING] No priority field');
+                }
+                
+                const confidenceValue = summary.confidence !== undefined ? summary.confidence : (summary.recommended_action?.confidence || 0);
+                if (confidenceValue !== undefined && confidenceValue !== null) {
+                    const confPercent = (Number(confidenceValue) * 100).toFixed(0);
+                    console.log('[CLOUD_REASONING] Setting confidence:', confPercent + '%');
+                    document.getElementById('confidence').textContent = confPercent + '%';
+                } else {
+                    console.warn('[CLOUD_REASONING] No confidence field');
+                }
+                
+                if (summary.reasoning_explanation) {
+                    console.log('[CLOUD_REASONING] Setting reasoning:', summary.reasoning_explanation);
+                    document.getElementById('actionReason').textContent = summary.reasoning_explanation;
+                } else {
+                    console.warn('[CLOUD_REASONING] No reasoning_explanation field');
+                }
+                
+                if (summary.overall_threat_level) {
+                    const threatLevel = summary.overall_threat_level.toLowerCase();
+                    console.log('[CLOUD_REASONING] Setting threat level:', threatLevel);
+                    document.getElementById('threatLevel').innerHTML = `<span class="threat-level threat-${threatLevel}">${threatLevel.toUpperCase()}</span>`;
+                } else {
+                    console.warn('[CLOUD_REASONING] No overall_threat_level field');
+                }
+                
+                if (summary.key_factors && summary.key_factors.length > 0) {
+                    const keyFactorsHtml = summary.key_factors.map(f => `<li>${f}</li>`).join('');
+                    console.log('[CLOUD_REASONING] Setting key factors:', summary.key_factors.length);
+                    document.getElementById('keyFactors').innerHTML = keyFactorsHtml;
+                } else {
+                    console.log('[CLOUD_REASONING] No key factors');
+                    document.getElementById('keyFactors').innerHTML = '<li>Video-level summary generated</li>';
+                }
+                
+                showMessage('✓ Cloud reasoning complete - recommendations generated', 'success');
+                console.log('[CLOUD_REASONING] Success!');
+                
+            } catch (error) {
+                console.error('[CLOUD_REASONING] Error:', error);
+                console.error('[CLOUD_REASONING] Stack:', error.stack);
+                showMessage('⚠️ Cloud reasoning service unavailable - analysis still complete', 'error');
+            }
+        }
+        
+        let realtimePlayInterval = null;
+        
+        // OLD PLAYBACK FUNCTIONS (Kept for reference, but overridden by CRITICAL FIX below)
+        // DO NOT CALL THESE DIRECTLY - Use window.playVideo(), window.playNextFrame(), etc instead
+        
+        // ============================================================
+        // CRITICAL FIX: ENSURE PROCESSING ONLY ON PLAY CLICK
+        // ============================================================
+        
+        // Flag to track if we're currently in real-time playback mode
+        let isRealtimeMode = false;
+        let realtimePlaybackActive = false;
+        
+        // selectVideo - Load metadata only, NEVER start processing
+        function selectVideo(videoName) {
+            console.log('[INFO] selectVideo called for:', videoName);
+            selectedVideo = videoName;
+            isRealtimeMode = true;
+            realtimePlaybackActive = false;
+            
+            document.getElementById('selectedVideo').innerHTML = `
+                <div style="color: #00ff00; font-weight: bold;">${videoName}</div>
+                <div style="font-size: 0.85rem; color: #888; margin-top: 8px;">✓ Loaded. Click Play button to start analysis.</div>
+            `;
+            showMessage(`✓ Video selected: ${videoName}. Click Play to begin real-time analysis.`, 'success');
+            
+            // Load metadata but DO NOT analyze frames
+            setTimeout(() => loadRealtimeVideo(videoName), 100);
+            
+            // Initialize display with first frame hint
+            document.getElementById('frameCounter').textContent = '0';
+            document.getElementById('statusText').textContent = 'Ready - Click Play to start';
+        }
+        
+        // playRealtimeVideo - ONLY entry point for playback analysis
+        // Uses frame sampling for performance (analyzes every 5th frame instead of every frame)
+        function playRealtimeVideo() {
+            console.log('[CONTROL] playRealtimeVideo called - this is the ONLY point where processing should start');
+            
+            if (!realtimeVideoMetadata) {
+                showMessage('❌ Video not loaded. Please select a video first.', 'error');
+                return;
+            }
+            
+            // Check if already playing
+            if (realtimePlayInterval) {
+                console.log('[CONTROL] Stopping playback');
+                clearInterval(realtimePlayInterval);
+                realtimePlayInterval = null;
+                realtimePlaybackActive = false;
+                const playBtn = document.querySelector('button[onclick="playVideo()"]');
+                if (playBtn) playBtn.innerHTML = '▶️ Play';
+                document.getElementById('statusText').textContent = 'Paused';
+                return;
+            }
+            
+            // Start playback with AGGRESSIVE frame sampling
+            // Sample 1 frame per video second: if video is 30fps, sample every 30 frames
+            // This is much faster than target-based sampling
+            const frameSamplingInterval = Math.ceil(realtimeVideoMetadata.fps);
+            const videoDurationSec = realtimeVideoMetadata.total_frames / realtimeVideoMetadata.fps;
+            estimatedFramesToAnalyze = Math.ceil(videoDurationSec); // 1 per second
+            
+            console.log(`[CONTROL] STARTING PLAYBACK - Aggressive 1fps sampling: analyze every ${frameSamplingInterval} frames (~${estimatedFramesToAnalyze} total frames for ${videoDurationSec.toFixed(1)}s video)`);
+            realtimePlaybackActive = true;
+            const playBtn = document.querySelector('button[onclick="playVideo()"]');
+            if (playBtn) playBtn.innerHTML = '⏸️ Pause';
+            document.getElementById('statusText').textContent = `Playing... (1 frame/sec: ~${estimatedFramesToAnalyze} frames analyzed)`;
+            
+            // Always start from frame 0 (FIXED: was causing -1 frame issue)
+            let frameNum = 0;
+            const framesPerSecond = 60; // Very fast display speed for quick feedback
+            const frameDuration = 1000 / framesPerSecond;
+            
+            realtimePlayInterval = setInterval(async () => {
+                if (frameNum >= realtimeVideoMetadata.total_frames - 1) {
+                    clearInterval(realtimePlayInterval);
+                    realtimePlayInterval = null;
+                    realtimePlaybackActive = false;
+                    const playBtn = document.querySelector('button[onclick="playVideo()"]');
+                    if (playBtn) playBtn.innerHTML = '▶️ Play';
+                    document.getElementById('statusText').textContent = 'Complete';
+                    // Set progress bar to 100% when complete
+                    document.querySelector('#progressBar > div').style.width = '100%';
+                    // Generate final video summary
+                    generateVideoSummary();
+                    return;
+                }
+                
+                // Only analyze every Nth frame (skip frames in between for speed)
+                if (frameNum % frameSamplingInterval === 0) {
+                    console.log('[REALTIME] Analyzing frame', frameNum);
+                    await displayRealtimeFrame(frameNum);
+                } else {
+                    // For skipped frames, just update the counter and show "analyzing..."
+                    document.getElementById('frameCounter').textContent = frameNum;
+                    document.getElementById('frameSlider').value = frameNum;
+                }
+                
+                frameNum++;
+            }, frameDuration);
+        };
+        
+        // Make sure all button handlers are safe
+        window.playVideo = () => {
+            console.log('[HANDLER] playVideo() called');
+            if (isRealtimeMode && realtimeVideoMetadata) {
+                playRealtimeVideo();
+            } else {
+                showMessage('⚠️ Real-time mode: Select a video and click Play to analyze.', 'error');
+            }
+        };
+        
+        window.playNextFrame = async function() {
+            console.log('[HANDLER] playNextFrame() called');
+            if (realtimeVideoMetadata && !realtimePlaybackActive) {
+                const currentFrame = parseInt(document.getElementById('frameCounter').textContent || "0");
+                const nextFrame = Math.min(currentFrame + 1, realtimeVideoMetadata.total_frames - 1);
+                await displayRealtimeFrame(nextFrame);
+            }
+        };
+        
+        window.playPreviousFrame = async function() {
+            console.log('[HANDLER] playPreviousFrame() called');
+            if (realtimeVideoMetadata && !realtimePlaybackActive) {
+                const currentFrame = parseInt(document.getElementById('frameCounter').textContent || "0");
+                const prevFrame = Math.max(0, currentFrame - 1);
+                await displayRealtimeFrame(prevFrame);
+            }
+        };
+        
+        window.jumpToFrame = async function(value) {
+            console.log('[HANDLER] jumpToFrame() called with value:', value);
+            if (realtimeVideoMetadata && !realtimePlaybackActive) {
+                const frameNum = Math.max(0, Math.min(parseInt(value), realtimeVideoMetadata.total_frames - 1));
+                await displayRealtimeFrame(frameNum);
+            }
+        };
+        
+        window.exportFrameData = function() {
+            console.log('[HANDLER] exportFrameData() called');
+            if (!isRealtimeMode || Object.keys(frameAnalysisCache).length === 0) {
+                showMessage('❌ No frames analyzed yet. Click Play to analyze the video.', 'error');
+                return;
+            }
+            
+            const exportData = {
+                video_id: realtimeVideoId,
+                video_name: selectedVideo,
+                total_frames: realtimeVideoMetadata.total_frames,
+                fps: realtimeVideoMetadata.fps,
+                duration_sec: realtimeVideoMetadata.duration_sec,
+                frames_analyzed: Object.keys(frameAnalysisCache).length,
+                exported_at: new Date().toISOString(),
+                frames: Object.entries(frameAnalysisCache).map(([frameNum, analysis]) => ({
+                    frame_number: parseInt(frameNum),
+                    timestamp_sec: parseInt(frameNum) / realtimeVideoMetadata.fps,
+                    perception: analysis.perception,
+                    reasoning: analysis.reasoning
+                }))
+            };
+            
+            const jsonStr = JSON.stringify(exportData, null, 2);
+            const blob = new Blob([jsonStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `analysis_${realtimeVideoId}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            showMessage(`✓ Exported ${Object.keys(frameAnalysisCache).length} analyzed frames`, 'success');
+        };
+        
+        // Load normal scenario on page load
+        window.onload = () => {
+            console.log('Page loaded - Dashboard initialized');
+            isRealtimeMode = false;
+            currentFrameIndex = 0;
+            frameAnalysisCache = {};
+            realtimePlayInterval = null;
+            realtimePlaybackActive = false;
+            
+            try {
+                // Show the test scenarios by default
+                switchTab('scenarios');
+                console.log('Ready for video testing');
+            } catch (e) {
+                console.error('Error during initialization:', e);
+                const msg = document.getElementById('messageContainer');
+                if (msg) {
+                    msg.innerHTML = `<div class="error-message"><strong>Initialization Error:</strong> ${e.message}</div>`;
+                }
+            }
+        };
+    </script>
+</body>
+</html>

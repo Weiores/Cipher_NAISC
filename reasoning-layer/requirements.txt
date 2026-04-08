@@ -1,3 +1,5 @@
 fastapi>=0.104.0
 pydantic>=2.0.0
 python-dateutil>=2.8.0
+requests>=2.31.0
+ollamafreeapi>=0.1.4

@@ -155,6 +155,26 @@ class CloudReasoningAgent:
         
         # Step 4: Generate threat level and recommendation
         threat_level = self._classify_threat_level(threat_metrics.combined_threat_score)
+        
+        # FIREARM OVERRIDE: Any firearm detection = at least HIGH threat (CRITICAL if threatening emotion/tone)
+        # This is a hard security rule - guns are inherently high-threat weapons
+        if weapon_detected and weapon_detected.lower() in {"gun", "rifle", "shotgun"}:
+            original_threat = threat_level
+            
+            # Guns are minimum HIGH threat
+            if threat_level in {RiskLevel.LOW, RiskLevel.MEDIUM}:
+                threat_level = RiskLevel.HIGH
+                logger.info(f"[CLOUD_AGENT] ⚠️ FIREARM DETECTED: Forcing threat_level to HIGH (was {original_threat})")
+            
+            # Escalate to CRITICAL if there's also threatening emotion or tone
+            if threat_level == RiskLevel.HIGH:
+                if emotion and emotion.lower() in {"angry", "fearful", "distressed", "panicked"}:
+                    threat_level = RiskLevel.CRITICAL
+                    logger.info(f"[CLOUD_AGENT] 🚨 FIREARM + THREATENING EMOTION: Forcing threat_level to CRITICAL (emotion={emotion})")
+                elif tone and tone.lower() in {"threat", "panic", "abnormal", "distressed"}:
+                    threat_level = RiskLevel.CRITICAL
+                    logger.info(f"[CLOUD_AGENT] 🚨 FIREARM + THREATENING TONE: Forcing threat_level to CRITICAL (tone={tone})")
+        
         recommended_action = self._generate_recommendation(
             threat_level,
             weapon_detected,
@@ -261,8 +281,22 @@ class CloudReasoningAgent:
         }
         
         base_score = weapon_scores.get(weapon.lower(), 0.30)
-        # Confidence-weighted score
-        return base_score * confidence
+        
+        # CRITICAL WEAPONS: Gun, Rifle, Shotgun - ALWAYS MAXIMUM THREAT
+        # Even if detected in few frames, guns are inherently critical
+        if weapon.lower() in {"gun", "rifle", "shotgun"}:
+            # Gun detected = IMMEDIATE CRITICAL THREAT (minimum 0.95)
+            # Confidence only boosts above baseline
+            return 0.95 + (0.05 * confidence)  # Range: 0.95-1.0
+        
+        # HIGH-THREAT WEAPONS (knife, blade) - HIGH baseline threat
+        elif base_score >= 0.85:
+            # Knife/blade: minimum 0.85, boosted by confidence
+            return min(1.0, 0.85 + (0.15 * confidence))
+        
+        # MEDIUM-THREAT WEAPONS - Confidence weighted
+        else:
+            return base_score * (0.5 + 0.5 * confidence)
     
     def _score_emotion_threat(self, emotion: str, confidence: float) -> float:
         """Score emotional threat on 0-1 scale"""
