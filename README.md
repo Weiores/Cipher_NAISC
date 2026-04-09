@@ -1,5 +1,20 @@
 # START SERVERS - QUICK REFERENCE
 
+## Telegram Alert Demo
+
+The Telegram operator alert service lives in `ui-layer/`.
+
+```bash
+cd NAISC/ui-layer
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+copy .env.example .env
+uvicorn app.main:app --reload --port 8010
+```
+
+Use `POST /telegram/alert` with a `ReasoningOutput` payload or the sample file in `ui-layer/samples/reasoning_alert.json`.
+
 ### Terminal 1: Launch all 3 servers
 ```bash
 cd Cipher_NAISC_ver1\perception-layer\security-perception-layer
