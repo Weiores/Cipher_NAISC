@@ -5,7 +5,10 @@ Handles integrated perception + reasoning workflows with Cloud Reasoning Agent
 """
 
 import logging
+import os
+
 from fastapi import APIRouter, HTTPException
+import httpx
 
 from app.schemas import UnifiedPerceptionOutput
 from app.reasoning_adapter import get_reasoning_adapter, is_reasoning_available
@@ -14,6 +17,48 @@ from app.reasoning_adapter import get_reasoning_adapter, is_reasoning_available
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/reasoning", tags=["reasoning"])
+
+
+def _auto_alert_enabled() -> bool:
+    value = os.getenv("REASONING_AUTO_TELEGRAM_ENABLED", "true").strip().lower()
+    return value not in {"0", "false", "no", "off"}
+
+
+def _auto_alert_url() -> str:
+    return os.getenv("REASONING_UI_ALERT_URL", "http://127.0.0.1:8010/telegram/alert").strip()
+
+
+async def _forward_reasoning_to_telegram(perception: UnifiedPerceptionOutput, reasoning_output) -> None:
+    """Send reasoning output to the UI layer so it can post Telegram alerts."""
+    if not _auto_alert_enabled():
+        return
+
+    alert_url = _auto_alert_url()
+    anomaly_type = reasoning_output.anomaly_types[0] if reasoning_output.anomaly_types else None
+    payload = {
+        "reasoning": reasoning_output.model_dump(mode="json"),
+        "location": perception.source_id,
+        "anomaly_type": anomaly_type,
+    }
+
+    timeout = httpx.Timeout(10.0, connect=3.0)
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            response = await client.post(alert_url, json=payload)
+            response.raise_for_status()
+        logger.info(
+            "[ROUTES] Forwarded reasoning result to UI alert service: source=%s threat=%s url=%s",
+            perception.source_id,
+            reasoning_output.threat_level,
+            alert_url,
+        )
+    except Exception as exc:
+        logger.warning(
+            "[ROUTES] Failed to forward reasoning result to UI alert service: source=%s url=%s error=%s",
+            perception.source_id,
+            alert_url,
+            exc,
+        )
 
 
 @router.get("/health")
@@ -59,6 +104,7 @@ async def assess_threat(perception: UnifiedPerceptionOutput):
         
         # Process perception through cloud reasoning agent (async)
         reasoning_output = await adapter.process_perception_async(perception)
+        await _forward_reasoning_to_telegram(perception, reasoning_output)
         
         logger.info(f"[ROUTES] Assessment complete: threat_level={reasoning_output.threat_level}")
         
@@ -86,6 +132,7 @@ async def assess_threat_full(perception: UnifiedPerceptionOutput):
         
         adapter = get_reasoning_adapter()
         reasoning_output = await adapter.process_perception_async(perception)
+        await _forward_reasoning_to_telegram(perception, reasoning_output)
         
         # Return with perception data for context
         return {
