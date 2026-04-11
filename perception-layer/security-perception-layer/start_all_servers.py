@@ -327,6 +327,7 @@ class FrameAnalysisCache:
     def __init__(self):
         self.cache = {}
         self.video_metadata = {}
+        self.audio_cache = {}  # Cache audio analysis by video_path
 
     def set_metadata(self, video_id, total_frames, fps, duration):
         self.video_metadata[video_id] = {
@@ -345,6 +346,14 @@ class FrameAnalysisCache:
 
     def get_metadata(self, video_id):
         return self.video_metadata.get(video_id, None)
+    
+    def cache_audio(self, video_path, audio_result):
+        """Cache audio analysis result"""
+        self.audio_cache[str(video_path)] = audio_result
+    
+    def get_audio(self, video_path):
+        """Get cached audio analysis"""
+        return self.audio_cache.get(str(video_path), None)
 
 
 class RealtimeVideoHandler(BaseHTTPRequestHandler):
@@ -417,6 +426,8 @@ class RealtimeVideoHandler(BaseHTTPRequestHandler):
                 
                 video_id = self._get_query_param("video_id", f"{video_name.replace('.', '_')}_realtime")
                 
+                print(f"[REALTIME] Analyzing frame {frame_num} of {video_name}, video_id={video_id}", flush=True)
+                
                 video_path = self.VIDEOS_DIR / video_name
                 if not video_path.exists():
                     self.send_error(404, f"Video not found: {video_name}")
@@ -425,6 +436,7 @@ class RealtimeVideoHandler(BaseHTTPRequestHandler):
                 # Check cache
                 cached_result = self.cache.get_frame(video_id, frame_num)
                 if cached_result:
+                    print(f"[REALTIME] Frame {frame_num} served from cache", flush=True)
                     self.send_response(200)
                     self.send_header("Content-type", "application/json")
                     self.send_header("Access-Control-Allow-Origin", "*")
@@ -433,29 +445,54 @@ class RealtimeVideoHandler(BaseHTTPRequestHandler):
                     return
                 
                 # Analyze frame
+                print(f"[REALTIME] Loading video from {video_path}", flush=True)
                 cap = cv2.VideoCapture(str(video_path))
                 cap.set(cv2.CAP_PROP_POS_FRAMES, frame_num)
                 ret, frame = cap.read()
                 cap.release()
                 
                 if not ret:
-                    self.send_error(400, f"Could not read frame {frame_num}")
+                    error_msg = f"Could not read frame {frame_num}"
+                    print(f"[REALTIME] ERROR: {error_msg}", flush=True)
+                    self.send_error(400, error_msg)
                     return
                 
-                # Run perception
+                print(f"[REALTIME] Frame {frame_num} loaded, running perception models...", flush=True)
+                
+                # Get or cache audio analysis for the video
+                precomputed_audio = self.cache.get_audio(str(video_path))
+                if not precomputed_audio:
+                    print(f"[REALTIME] Extracting and analyzing audio for first time...", flush=True)
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    precomputed_audio = loop.run_until_complete(
+                        self.processor._run_audio_analysis_once(str(video_path), video_id)
+                    )
+                    loop.close()
+                    self.cache.cache_audio(str(video_path), precomputed_audio)
+                    print(f"[REALTIME] Audio analysis cached for future frames", flush=True)
+                else:
+                    print(f"[REALTIME] Using cached audio analysis", flush=True)
+                
+                # Run perception with proper arguments
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 perception, _ = loop.run_until_complete(
-                    self.processor._run_perception_models(frame, video_id, frame_num)
+                    self.processor._run_perception_models(frame, video_id, frame_num, str(video_path), precomputed_audio)
                 )
                 loop.close()
                 
+                print(f"[REALTIME] Perception complete for frame {frame_num}, generating reasoning...", flush=True)
                 reasoning_payload = self.processor._quick_frame_reasoning(perception)
                 
                 # Encode frame
+                print(f"[REALTIME] Encoding frame {frame_num} to JPEG...", flush=True)
                 import base64
                 _, buffer = cv2.imencode('.jpg', frame)
                 frame_data = base64.b64encode(buffer).decode()
+                
+                metadata = self.cache.get_metadata(video_id)
+                fps = metadata['fps'] if metadata else 30
                 
                 analysis_result = {
                     "frame_number": frame_num,
@@ -470,10 +507,12 @@ class RealtimeVideoHandler(BaseHTTPRequestHandler):
                         "acoustic_events": perception.traits.acoustic_events or []
                     },
                     "reasoning": reasoning_payload,
-                    "timestamp_sec": frame_num / (self.cache.get_metadata(video_id)['fps'] if self.cache.get_metadata(video_id) else 30)
+                    "timestamp_sec": frame_num / fps
                 }
                 
                 self.cache.cache_frame(video_id, frame_num, analysis_result)
+                
+                print(f"[REALTIME] Frame {frame_num} analysis complete: weapon={analysis_result['perception']['weapon_detected']}, threat={analysis_result['reasoning'].get('threat_level', 'unknown')}", flush=True)
                 
                 self.send_response(200)
                 self.send_header("Content-type", "application/json")
@@ -482,6 +521,9 @@ class RealtimeVideoHandler(BaseHTTPRequestHandler):
                 self.wfile.write(json.dumps(analysis_result).encode())
                 
             except Exception as e:
+                print(f"[REALTIME] ERROR analyzing frame: {str(e)}", flush=True)
+                import traceback
+                print(f"[REALTIME] Traceback: {traceback.format_exc()}", flush=True)
                 self.send_error(400, str(e))
         
         # List videos
@@ -591,8 +633,29 @@ class RealtimeVideoHandler(BaseHTTPRequestHandler):
                     tone = p.get('tone', 'unknown')
                     tone_counts[tone] = tone_counts.get(tone, 0) + 1
                 
-                # Most common traits
-                most_common_weapon = max(weapon_counts, key=weapon_counts.get) if weapon_counts else 'unknown'
+                # Most common traits - WITH SECURITY PRIORITY FOR WEAPONS
+                # CRITICAL: For weapons, use PRIORITY mode not FREQUENCY mode
+                # If ANY gun detected, weapon = "gun" (not "unarmed just because 79% of frames were safe")
+                def pick_weapon_priority(weapon_counts):
+                    """Return highest-threat weapon detected, prioritizing guns over knives over others"""
+                    if not weapon_counts:
+                        return 'unknown'
+                    
+                    critical = {"gun", "rifle", "shotgun"}
+                    high_threat = {"knife", "blade"}
+                    
+                    # Check critical weapons first
+                    for w in critical:
+                        if w in weapon_counts:
+                            return w
+                    # Then high-threat weapons
+                    for w in high_threat:
+                        if w in weapon_counts:
+                            return w
+                    # Then frequency-based for anything else
+                    return max(weapon_counts, key=weapon_counts.get)
+                
+                most_common_weapon = pick_weapon_priority(weapon_counts)
                 most_common_emotion = max(emotion_counts, key=emotion_counts.get) if emotion_counts else 'unknown'
                 most_common_tone = max(tone_counts, key=tone_counts.get) if tone_counts else 'unknown'
                 

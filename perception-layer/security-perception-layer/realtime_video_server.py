@@ -368,8 +368,29 @@ class RealtimeVideoAPIHandler(BaseHTTPRequestHandler):
                     tone = p.get('tone', 'unknown')
                     tone_counts[tone] = tone_counts.get(tone, 0) + 1
                 
-                # Most common traits
-                most_common_weapon = max(weapon_counts, key=weapon_counts.get) if weapon_counts else 'unknown'
+                # Most common traits - WITH SECURITY PRIORITY FOR WEAPONS
+                # CRITICAL: For weapons, use PRIORITY mode not FREQUENCY mode
+                # If ANY gun detected, weapon = "gun" (not "unarmed just because 79% of frames were safe")
+                def pick_weapon_priority(weapon_counts):
+                    """Return highest-threat weapon detected, prioritizing guns over knives over others"""
+                    if not weapon_counts:
+                        return 'unknown'
+                    
+                    critical = {"gun", "rifle", "shotgun"}
+                    high_threat = {"knife", "blade"}
+                    
+                    # Check critical weapons first
+                    for w in critical:
+                        if w in weapon_counts:
+                            return w
+                    # Then high-threat weapons
+                    for w in high_threat:
+                        if w in weapon_counts:
+                            return w
+                    # Then frequency-based for anything else
+                    return max(weapon_counts, key=weapon_counts.get)
+                
+                most_common_weapon = pick_weapon_priority(weapon_counts)
                 most_common_emotion = max(emotion_counts, key=emotion_counts.get) if emotion_counts else 'unknown'
                 most_common_tone = max(tone_counts, key=tone_counts.get) if tone_counts else 'unknown'
                 

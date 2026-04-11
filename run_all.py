@@ -87,6 +87,11 @@ def copy_video(source: Path) -> Path:
     require_file(source, "Input video")
     VIDEOS_DIR.mkdir(parents=True, exist_ok=True)
     destination = VIDEOS_DIR / source.name
+    
+    # If source is already in VIDEOS_DIR, don't copy to itself
+    if source.resolve() == destination.resolve():
+        return source
+    
     shutil.copy2(source, destination)
     return destination
 
@@ -189,8 +194,8 @@ def build_alert_payload(result: dict[str, Any], detection: dict[str, Any], video
         },
         "reasoning_version": "video_frame_heuristic_v1",
         "location": f"Processed video: {video_path.name}",
-        "anomaly_type": "weapon_detected",
-        "top_scenario": "Armed incident detected in processed video",
+        "anomaly_type": anomalies[0] if anomalies else "unknown",
+        "top_scenario": reasoning.get("conclusion", "Security incident detected"),
         "source": "run_all.py",
         "video_path": str(video_path.relative_to(ROOT)).replace("\\", "/"),
         "video_caption": f"NAISC processed alert for {video_path.name}",

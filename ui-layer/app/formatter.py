@@ -54,14 +54,14 @@ def format_alert_message(alert: TelegramAlertRequest, incident_id: str) -> str:
 
     return "\n\n".join(
         [
-            f"🆔 <b>Incident ID:</b> {escape(incident_id)}",
-            f"🚨 <b>Severity:</b> {escape(reasoning.threat_level.upper())}",
+            f"<b>Incident ID:</b> {escape(incident_id)}",
+            f"<b>Severity:</b> {escape(reasoning.threat_level.upper())}",
             f"📍 <b>Location:</b> {escape(alert.location)}",
-            f"🧩 <b>Anomaly Type:</b> {escape(anomaly_type)}",
+            f"<b>Anomaly Type:</b> {escape(anomaly_type)}",
             f"🛡️ <b>Recommended Response:</b> {escape(recommendation.action)}",
             f"📊 <b>Confidence:</b> {escape(format_confidence(reasoning.confidence))}",
-            f"📝 <b>Rationale:</b> {escape(reasoning.explanation.summary)}",
-            f"🔮 <b>Top Scenario:</b> {escape(top_scenario)}",
+            f"<b>Rationale:</b> {escape(reasoning.explanation.summary)}",
+            f"<b>Top Scenario:</b> {escape(top_scenario)}",
             f"⏰ <b>Timestamp:</b> {escape(current_timestamp)}",
         ]
     )
