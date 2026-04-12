@@ -24,7 +24,7 @@ sys.stdout = buffer = sys.stdout
 os.environ['PYTHONUNBUFFERED'] = '1'
 
 from app.reasoning_adapter import get_reasoning_adapter
-from app.schemas import UnifiedPerceptionOutput, UnifiedTraits, UnifiedDecision, PerceptionRequest, VideoInput, PerceptionResponse
+from app.schemas import UnifiedPerceptionOutput, UnifiedTraits, UnifiedDecision, PerceptionRequest, VideoInput, AudioInput, PerceptionResponse, AudioDetection
 from app.services.pipeline import perception_pipeline
 
 
@@ -58,6 +58,51 @@ class VideoProcessor:
         self.processing_queue = queue.Queue()
         self.results_cache = {}
         self.weapon_bboxes = {}  # Store bounding boxes per frame
+
+    async def _run_audio_analysis_once(self, video_path: str, video_id: str) -> AudioDetection:
+        """
+        Run audio analysis once for the entire video before processing frames.
+        This avoids re-analyzing the same audio for every frame.
+        
+        Args:
+            video_path: Path to video file
+            video_id: Unique identifier for this processing session
+        
+        Returns:
+            AudioDetection object with tone, confidence, and other audio features
+        """
+        try:
+            print(f"[AUDIO_ONCE] Starting single audio analysis for video: {video_path}", flush=True)
+            
+            # Create perception request with audio source (points to original video file)
+            request = PerceptionRequest(
+                source_id=f"video-audio-{video_id}",
+                audio=AudioInput(
+                    source_type="stream_audio",
+                    uri=str(video_path)
+                )
+            )
+            
+            # Run only the audio model - direct call instead of full pipeline
+            from app.services.models.audio import AudioThreatDetectionAdapter
+            audio_model = AudioThreatDetectionAdapter()
+            audio_result = await audio_model.infer(request)
+            
+            print(f"[AUDIO_ONCE] SUCCESS: Audio analysis complete: tone={audio_result.tone}, "
+                  f"confidence={audio_result.confidence}, speech_present={audio_result.speech_present}", flush=True)
+            
+            return audio_result
+            
+        except Exception as e:
+            print(f"[AUDIO_ONCE] ERROR: Error during audio analysis: {str(e)}", flush=True)
+            import traceback
+            traceback.print_exc()
+            # Return safe default if audio analysis fails
+            return AudioDetection(
+                tone="unknown",
+                confidence=0.0,
+                speech_present=False,
+            )
 
     def _build_reasoning_payload(self, reasoning, perception):
         """Normalize reasoning output to a stable JSON-safe payload."""
@@ -101,7 +146,15 @@ class VideoProcessor:
         }
 
     def _pick_most_common(self, values, fallback="unknown"):
-        """Return most frequent non-empty value from a list."""
+        """
+        Return most frequent non-empty value from a list.
+        
+        SPECIAL CASE for weapons (security priority):
+        - If ANY critical weapon (gun/rifle/shotgun) detected, return that
+        - Else if ANY high-threat weapon (knife/blade) detected, return that
+        - Else return most common (emotion/tone use cases)
+        - Else return fallback
+        """
         counts = {}
         for value in values:
             if value is None:
@@ -113,6 +166,24 @@ class VideoProcessor:
 
         if not counts:
             return fallback
+        
+        # For weapon detection: PRIORITY MODE (not frequency mode)
+        # This is critical for security - ANY gun detected means weapon status is "gun"
+        # NOT "unarmed just because 79% of frames were peaceful"
+        critical_weapons = {"gun", "rifle", "shotgun"}
+        high_threat_weapons = {"knife", "blade"}
+        
+        # Check for critical weapons first
+        for weapon in critical_weapons:
+            if weapon in counts:
+                return weapon
+        
+        # Then check for high-threat weapons
+        for weapon in high_threat_weapons:
+            if weapon in counts:
+                return weapon
+        
+        # For non-weapon cases (emotion, tone), use frequency
         return max(counts.items(), key=lambda item: item[1])[0]
 
     def _quick_frame_reasoning(self, perception):
@@ -205,8 +276,21 @@ class VideoProcessor:
         if summary.get('peak_threat_score', 0.0) and float(summary.get('peak_threat_score', 0.0)) >= 0.8:
             risk_hints.append('peak_frame_critical')
 
+        # CRITICAL FIX for weapon confidence:
+        # If weapon detected in ANY frame, we are 100% confident it exists.
+        # weapon_frame_ratio tells us HOW OFTEN it appeared (21.7%), not confidence.
+        weapon_confidence = (
+            1.0 if weapon not in {'unarmed', 'unknown', 'none'} 
+            else 0.0
+        )
+        weapon_frame_ratio = float(summary.get('weapon_frame_ratio', 0.0) or 0.0)
+        
+        # For logging/diagnostics, include both pieces of info
+        if weapon_confidence == 1.0 and weapon_frame_ratio > 0:
+            risk_hints.append(f'weapon_present_in_{int(weapon_frame_ratio*100)}pct_of_frames')
+
         confidence_scores = {
-            'weapon': float(summary.get('weapon_frame_ratio', 0.0) or 0.0),
+            'weapon': weapon_confidence,  # 1.0 if weapon detected, 0.0 if unarmed
             'emotion': threat_score,
             'tone': min(1.0, float(summary.get('peak_threat_score', 0.0) or 0.0)),
             'uniform': float(summary.get('uniform_frame_ratio', 0.0) or 0.0),
@@ -459,6 +543,13 @@ class VideoProcessor:
         }
         
         try:
+            # ===== STEP 1: RUN AUDIO ANALYSIS ONCE FOR ENTIRE VIDEO =====
+            loop = _get_event_loop()
+            print(f"[VIDEO] Step 1/2: Running audio analysis...", flush=True)
+            audio_result = loop.run_until_complete(self._run_audio_analysis_once(video_path, video_id))
+            
+            # ===== STEP 2: PROCESS VIDEO FRAMES WITH PRECOMPUTED AUDIO =====
+            print(f"[VIDEO] Step 2/2: Processing frames with vision models...", flush=True)
             cap = cv2.VideoCapture(video_path)
             fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
             total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -485,13 +576,17 @@ class VideoProcessor:
                     # Run perception models on actual frame - returns unified output + weapon bboxes
                     # Use asyncio.run_until_complete with fallback for event loop issues
                     try:
-                        perception, weapon_bboxes = loop.run_until_complete(self._run_perception_models(frame, video_id, frame_count))
+                        perception, weapon_bboxes = loop.run_until_complete(
+                            self._run_perception_models(frame, video_id, frame_count, video_path, audio_result)
+                        )
                     except RuntimeError as e:
                         print(f"[VIDEO] Event loop error: {e}. Creating new loop...", flush=True)
                         # Create a fresh event loop for this thread
                         new_loop = asyncio.new_event_loop()
                         asyncio.set_event_loop(new_loop)
-                        perception, weapon_bboxes = new_loop.run_until_complete(self._run_perception_models(frame, video_id, frame_count))
+                        perception, weapon_bboxes = new_loop.run_until_complete(
+                            self._run_perception_models(frame, video_id, frame_count, video_path, audio_result)
+                        )
                         loop = new_loop
                     
                     # Use fast frame-level heuristic; one cloud pass is done after aggregation.
@@ -564,12 +659,19 @@ class VideoProcessor:
             self.results_cache[video_id] = error_result
             return error_result
     
-    async def _run_perception_models(self, frame, video_id, frame_number):
+    async def _run_perception_models(self, frame, video_id, frame_number, video_path, precomputed_audio: AudioDetection):
         """
-        Run actual perception models on video frame
+        Run vision-based perception models on video frame.
         
-        Uses the real weapon, emotion, audio, and uniform detection models
-        instead of generating random data.
+        Audio analysis is now run separately once for the entire video and passed in,
+        avoiding redundant re-analysis of the same audio for every frame.
+        
+        Args:
+            frame: Individual video frame
+            video_id: Unique ID for the video
+            frame_number: Frame sequence number
+            video_path: Path to original video file
+            precomputed_audio: AudioDetection result from single video-level analysis
         
         Returns:
             Tuple of (UnifiedPerceptionOutput, weapon_bounding_boxes)
@@ -582,7 +684,8 @@ class VideoProcessor:
                 temp_frame_path = tmp.name
                 cv2.imwrite(temp_frame_path, frame)
             
-            # Create perception request with frame file path
+            # Create perception request with frame file for vision models only
+            # NOTE: We do NOT include audio here - audio was already processed separately
             request = PerceptionRequest(
                 source_id=f"video-{video_id}",
                 video=VideoInput(
@@ -590,20 +693,30 @@ class VideoProcessor:
                     uri=temp_frame_path,
                     frame_sample_fps=2.0,
                     camera_id=video_id
-                )
+                ),
+                # audio=None  # Skip audio - use precomputed result instead
             )
             
-            # Run through actual perception pipeline - GET FULL RESPONSE with weapon bboxes
-            print(f"[PERCEPTION] Running models on frame {frame_number}...", flush=True)
-            response = await perception_pipeline.run(request)  # ← Full response with weapon_model_output
+            # Run through perception pipeline - bypasses audio model
+            # The pipeline will handle vision models only since audio URI is not provided
+            print(f"[PERCEPTION] Running VISION models on frame {frame_number}...", flush=True)
+            response = await perception_pipeline.run(request)
             unified_output = response.unified_output
             weapon_model = response.weapon_model_output
+            
+            # INJECT PRECOMPUTED AUDIO DATA into unified output
+            # This ensures all frames have consistent audio tone from the video-level analysis
+            unified_output.traits.tone = precomputed_audio.tone
+            unified_output.traits.speech_present = precomputed_audio.speech_present
+            unified_output.traits.acoustic_events = precomputed_audio.acoustic_events
+            unified_output.traits.keyword_flags = precomputed_audio.keyword_flags
+            unified_output.traits.transcript = precomputed_audio.transcript
             
             print(f"[PERCEPTION] Frame {frame_number}: "
                   f"weapon={unified_output.traits.weapon_detected} (confidence={weapon_model.confidence}), "
                   f"bounding_boxes={weapon_model.bounding_boxes}, "
                   f"emotion={unified_output.traits.emotion}, "
-                  f"tone={unified_output.traits.tone}, "
+                  f"tone={unified_output.traits.tone} (precomputed), "
                   f"uniform={unified_output.traits.uniform_present}", flush=True)
             
             # Store weapon bounding boxes for visualization
@@ -674,14 +787,14 @@ class VideoProcessor:
         
         # Draw weapon detection bounding boxes from YOLO
         if weapon_bboxes and len(weapon_bboxes) > 0:
-            print(f"[DRAW] ✓ Processing {len(weapon_bboxes)} bounding boxes", flush=True)
+            print(f"[DRAW] SUCCESS: Processing {len(weapon_bboxes)} bounding boxes", flush=True)
             # weapon_bboxes format: [[x1, y1, x2, y2], ...] with normalized or absolute coordinates
             for idx, bbox in enumerate(weapon_bboxes):
                 print(f"[DRAW]   Box #{idx}: {bbox} (type: {type(bbox)})", flush=True)
                 if bbox and len(bbox) >= 4:
                     try:
                         x1, y1, x2, y2 = float(bbox[0]), float(bbox[1]), float(bbox[2]), float(bbox[3])
-                        print(f"[DRAW]   → Raw coords: ({x1}, {y1}) to ({x2}, {y2})", flush=True)
+                        print(f"[DRAW]   => Raw coords: ({x1}, {y1}) to ({x2}, {y2})", flush=True)
                         
                         # Check if coordinates are normalized (0-1) or absolute
                         if x1 <= 1.0 and y1 <= 1.0 and x2 <= 1.0 and y2 <= 1.0:
@@ -690,18 +803,18 @@ class VideoProcessor:
                             y1_px = int(y1 * height)
                             x2_px = int(x2 * width)
                             y2_px = int(y2 * height)
-                            print(f"[DRAW]   → Normalized: scaled to ({x1_px}, {y1_px}) to ({x2_px}, {y2_px})", flush=True)
+                            print(f"[DRAW]   => Normalized: scaled to ({x1_px}, {y1_px}) to ({x2_px}, {y2_px})", flush=True)
                         else:
                             # Already absolute coordinates
                             x1_px, y1_px, x2_px, y2_px = int(x1), int(y1), int(x2), int(y2)
-                            print(f"[DRAW]   → Absolute: pixel coords ({x1_px}, {y1_px}) to ({x2_px}, {y2_px})", flush=True)
+                            print(f"[DRAW]   => Absolute: pixel coords ({x1_px}, {y1_px}) to ({x2_px}, {y2_px})", flush=True)
                         
                         # Validate coordinates are within frame
                         if x1_px < 0 or y1_px < 0 or x2_px > width or y2_px > height:
-                            print(f"[DRAW]   ⚠ WARNING: Coords out of bounds! Frame is {width}x{height}", flush=True)
+                            print(f"[DRAW]   WARNING: Coords out of bounds! Frame is {width}x{height}", flush=True)
                         
                         # Draw red bounding box for weapon
-                        print(f"[DRAW]   → Drawing rectangle from ({x1_px}, {y1_px}) to ({x2_px}, {y2_px})", flush=True)
+                        print(f"[DRAW]   => Drawing rectangle from ({x1_px}, {y1_px}) to ({x2_px}, {y2_px})", flush=True)
                         cv2.rectangle(frame, (x1_px, y1_px), (x2_px, y2_px), (0, 0, 255), 3)
                         
                         # Draw weapon label with confidence
@@ -715,13 +828,13 @@ class VideoProcessor:
                                      (x1_px + text_size[0], y1_px), (0, 0, 255), -1)
                         cv2.putText(frame, text, (x1_px, y1_px - 5),
                                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
-                        print(f"[DRAW]   ✓ Drawn successfully", flush=True)
+                        print(f"[DRAW]   SUCCESS: Drawn successfully", flush=True)
                     except Exception as e:
-                        print(f"[DRAW]   ✗ Error drawing bbox: {e}", flush=True)
+                        print(f"[DRAW]   ERROR: Error drawing bbox: {e}", flush=True)
                 else:
-                    print(f"[DRAW]   ✗ Invalid bbox format: {bbox}", flush=True)
+                    print(f"[DRAW]   ERROR: Invalid bbox format: {bbox}", flush=True)
         else:
-            print(f"[DRAW] ✗ No bounding boxes to draw", flush=True)
+            print(f"[DRAW] ERROR: No bounding boxes to draw", flush=True)
         
         # Draw uniform detection if present
         if perception.traits.uniform_present:

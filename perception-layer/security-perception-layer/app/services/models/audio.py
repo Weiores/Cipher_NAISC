@@ -35,8 +35,11 @@ class AudioThreatDetectionAdapter(ModelAdapter):
         return details
 
     async def infer(self, request: PerceptionRequest) -> AudioDetection:
+        print(f"[AUDIO] Starting audio inference", flush=True)
         audio_source = self._resolve_audio_source(request)
+        print(f"[AUDIO] Resolved audio source: {audio_source}", flush=True)
         if audio_source is None:
+            print(f"[AUDIO] No audio source found, returning unknown", flush=True)
             return AudioDetection(
                 tone="unknown",
                 confidence=0.0,
@@ -44,9 +47,11 @@ class AudioThreatDetectionAdapter(ModelAdapter):
             )
 
         analysis = self._analyze_audio(audio_source)
+        print(f"[AUDIO] Analysis result: {analysis}", flush=True)
         if analysis is not None:
             return analysis
 
+        print(f"[AUDIO] Analysis failed, returning unknown", flush=True)
         return AudioDetection(
             tone="unknown",
             confidence=0.0,
@@ -67,31 +72,42 @@ class AudioThreatDetectionAdapter(ModelAdapter):
         return None
 
     def _analyze_audio(self, source: Path) -> AudioDetection | None:
+        print(f"[AUDIO_EXTRACT] Extracting audio from: {source}", flush=True)
         wav_path = self._extract_audio_to_wav(source)
         if wav_path is None:
+            print(f"[AUDIO_EXTRACT] ERROR: Failed to extract audio", flush=True)
             return None
+        print(f"[AUDIO_EXTRACT] OK: Audio extracted to: {wav_path}", flush=True)
 
         transcript = self._transcribe_audio(wav_path)
+        print(f"[AUDIO_TRANSCRIBE] Transcript: {transcript}", flush=True)
 
         try:
             sample_rate, audio = wavfile.read(str(wav_path))
-        except Exception:
+            print(f"[AUDIO_READ] OK: Read WAV: {sample_rate}Hz, shape={audio.shape}", flush=True)
+        except Exception as e:
+            print(f"[AUDIO_READ] ERROR: Failed to read WAV: {e}", flush=True)
             wav_path.unlink(missing_ok=True)
             return None
 
         wav_path.unlink(missing_ok=True)
 
         if audio.ndim > 1:
+            print(f"[AUDIO_PROCESS] Converting multi-channel to mono", flush=True)
             audio = audio.mean(axis=1)
         audio = audio.astype(np.float32)
         max_val = float(np.max(np.abs(audio))) if audio.size else 0.0
         if max_val > 0:
             audio = audio / max_val
+            print(f"[AUDIO_PROCESS] Normalized audio, max_val={max_val:.4f}", flush=True)
         if audio.size == 0:
+            print(f"[AUDIO_PROCESS] ERROR: Audio is empty", flush=True)
             return AudioDetection(tone="unknown", confidence=0.0, speech_present=False)
 
         rms, zcr = self._frame_features(audio, sample_rate)
+        print(f"[AUDIO_FEATURES] Extracted features: rms.size={rms.size}, zcr.size={zcr.size}", flush=True)
         if rms.size == 0:
+            print(f"[AUDIO_FEATURES] ERROR: No RMS features computed", flush=True)
             return AudioDetection(tone="unknown", confidence=0.0, speech_present=False)
 
         median_rms = float(np.median(rms))
@@ -101,6 +117,10 @@ class AudioThreatDetectionAdapter(ModelAdapter):
         speech_ratio = float(np.mean(rms > max(0.08, median_rms * 2.5)))
         burst_ratio = float(np.mean(rms > max(0.18, median_rms * 4.0)))
 
+        # DEBUG: Log audio feature values
+        print(f"[AUDIO_DEBUG] Speech ratio: {speech_ratio:.4f}, Burst ratio: {burst_ratio:.4f}", flush=True)
+        print(f"[AUDIO_DEBUG] P95 RMS: {p95_rms:.4f}, Mean ZCR: {mean_zcr:.4f}, Peak: {peak:.4f}", flush=True)
+        
         tone, confidence = self._classify_tone(
             speech_ratio=speech_ratio,
             burst_ratio=burst_ratio,
@@ -108,6 +128,7 @@ class AudioThreatDetectionAdapter(ModelAdapter):
             mean_zcr=mean_zcr,
             peak=peak,
         )
+        print(f"[AUDIO_DEBUG] Classified tone: {tone} (confidence: {confidence:.2f})", flush=True)
         acoustic_events = self._detect_events(
             speech_ratio=speech_ratio,
             burst_ratio=burst_ratio,
@@ -132,6 +153,7 @@ class AudioThreatDetectionAdapter(ModelAdapter):
     def _extract_audio_to_wav(self, source: Path) -> Path | None:
         ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
         output = self.temp_dir / f"{source.stem}_decoded.wav"
+        print(f"[FFMPEG] Output path: {output}", flush=True)
         command = [
             ffmpeg_exe,
             "-y",
@@ -144,10 +166,16 @@ class AudioThreatDetectionAdapter(ModelAdapter):
             "16000",
             str(output),
         ]
+        print(f"[FFMPEG] Running: {' '.join(command)}", flush=True)
         result = subprocess.run(command, capture_output=True, text=True)
-        if result.returncode != 0 or not output.exists():
+        print(f"[FFMPEG] Return code: {result.returncode}", flush=True)
+        if result.returncode != 0:
+            print(f"[FFMPEG] Error: {result.stderr}", flush=True)
+        if not output.exists():
+            print(f"[FFMPEG] Output file not created", flush=True)
             output.unlink(missing_ok=True)
             return None
+        print(f"[FFMPEG] WAV file created: {output.stat().st_size} bytes", flush=True)
         return output
 
     def _transcribe_audio(self, wav_path: Path) -> str | None:
@@ -222,14 +250,20 @@ class AudioThreatDetectionAdapter(ModelAdapter):
         mean_zcr: float,
         peak: float,
     ) -> tuple[str, float]:
+        # Check each condition and log why it matched/failed
         if speech_ratio < 0.02 and peak < 0.12:
+            print(f"[TONE_CLASSIFY] => UNKNOWN (no speech: {speech_ratio:<.4f} and no peak: {peak:<.4f})", flush=True)
             return "unknown", 0.0
         if peak > 0.95 and burst_ratio > 0.12:
+            print(f"[TONE_CLASSIFY] => PANIC (high peak: {peak:.4f} AND burst: {burst_ratio:.4f})", flush=True)
             return "panic", 0.84
         if speech_ratio > 0.18 and p95_rms > 0.22 and mean_zcr > 0.12:
+            print(f"[TONE_CLASSIFY] => THREAT (speech: {speech_ratio:.4f} AND rms: {p95_rms:.4f} AND zcr: {mean_zcr:.4f})", flush=True)
             return "threat", 0.79
         if burst_ratio > 0.08 or peak > 0.8:
+            print(f"[TONE_CLASSIFY] => ABNORMAL (burst: {burst_ratio:.4f} OR peak: {peak:.4f})", flush=True)
             return "abnormal", 0.68
+        print(f"[TONE_CLASSIFY] => CALM (default fallback)", flush=True)
         return "calm", 0.62
 
     def _detect_events(

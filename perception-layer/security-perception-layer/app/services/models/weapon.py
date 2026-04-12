@@ -3,7 +3,6 @@ from pathlib import Path
 from typing import Any
 
 import cv2
-import httpx
 import numpy as np
 
 from app.schemas import PerceptionRequest, WeaponDetection
@@ -17,63 +16,6 @@ try:
     from ultralytics import YOLO
 except ImportError:  # pragma: no cover - optional runtime dependency
     YOLO = None
-
-try:
-    from mediapipe.python.solutions import face_detection
-    mp_face_detection = face_detection
-except (ImportError, AttributeError):  # pragma: no cover - optional runtime dependency
-    try:
-        # Fallback: try direct import
-        import mediapipe as mp
-        mp_face_detection = mp.solutions.face_detection
-    except (ImportError, AttributeError):
-        mp_face_detection = None
-
-
-
-try:
-    import tensorflow as tf
-except ImportError:  # pragma: no cover - optional runtime dependency
-    tf = None
-
-# OpenCV cascade classifier for face detection (fallback if MediaPipe fails)
-try:
-    FACE_CASCADE_PATH = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
-    opencv_face_cascade = cv2.CascadeClassifier(FACE_CASCADE_PATH)
-except Exception:
-    opencv_face_cascade = None
-
-# Weapon detection models - priority order:
-# 1. Environment variable override (user-specified)
-# 2. Falcons-ai pre-trained YOLOv8 models (best for real-world weapon detection)
-# 3. Custom trained models (fallback)
-
-# Pre-trained weapon detection models from Falcons-ai (YOLOv8)
-# These are trained on Roboflow weapon detection dataset
-FALCONS_YOLOV8S_MODEL = Path(
-    Path(__file__).resolve().parents[4]
-    / ".."  # Up to parent containing perception-layer
-    / "weapons_detection_trainer_yolov8_open"
-    / "yolov8s.pt"
-)
-
-FALCONS_YOLOV8N_MODEL = Path(
-    Path(__file__).resolve().parents[4]
-    / ".."
-    / "weapons_detection_trainer_yolov8_open"
-    / "yolov8n.pt"
-)
-
-# WasifSohail5 pre-trained model (high precision 76.6%, recall 82.0%)
-WASIF_WEAPON_MODEL = Path(
-    Path(__file__).resolve().parents[3]
-    / "app"
-    / "services"
-    / "models"
-    / "wasif_weapon_model.pt"
-)
-
-# Fallback to custom trained models
 CUSTOM_WEAPON_MODEL = Path(
     Path(__file__).resolve().parents[4]
     / "Weapons-and-Knives-Detector-with-YOLOv8"
@@ -91,36 +33,11 @@ class WeaponDetectionAdapter(ModelAdapter):
     video_frame_samples = 16
 
     def __init__(self) -> None:
-        self.legacy_service_url = os.getenv("LEGACY_WEAPON_SERVICE_URL", "").rstrip("/")
-        self.tf_saved_model_dir = os.getenv("TF_WEAPON_SAVED_MODEL_DIR")
-        self.tf_saved_model = self._load_tf_saved_model(self.tf_saved_model_dir)
-        
         self.model_path = None
         self.model = None
         
         # Multi-frame validation: track recent detections to require weapon in 2+ frames
         self.detection_history = []  # Store (label, frame_index) tuples
-        
-        # Face detection for filtering false positives
-        self.face_detector = None
-        self.use_opencv_face_detection = False
-        
-        if mp_face_detection:
-            try:
-                self.face_detector = mp_face_detection.FaceDetection(
-                    model_selection=0,  # 0=short range (0-2m), 1=full range (0-5m)
-                    min_detection_confidence=0.5
-                )
-                print("[WEAPON_ADAPTER] ✓ Face detector initialized (MediaPipe)")
-            except Exception as e:
-                print(f"[WEAPON_ADAPTER] WARNING: Could not initialize MediaPipe face detector: {e}")
-        
-        # Fallback to OpenCV cascade if MediaPipe failed
-        if self.face_detector is None and opencv_face_cascade is not None:
-            self.use_opencv_face_detection = True
-            print("[WEAPON_ADAPTER] ✓ Face detector initialized (OpenCV Cascade)")
-        elif self.face_detector is None:
-            print("[WEAPON_ADAPTER] WARNING: No face detection available - faces may cause false positives")
         
         # Check environment variable override first
         env_model_path = os.getenv("WEAPON_MODEL_PATH")
@@ -130,24 +47,14 @@ class WeaponDetectionAdapter(ModelAdapter):
             if self.model:
                 print(f"[WEAPON_ADAPTER] Loaded model from environment variable: {env_model_path}")
         
-        # PRIORITY 1: Custom trained model (Weapons-and-Knives-Detector-with-YOLOv8) - Best working model
+        # Load custom trained model (Weapons-and-Knives-Detector-with-YOLOv8)
         if self.model is None and CUSTOM_WEAPON_MODEL.exists():
             self.model_path = str(CUSTOM_WEAPON_MODEL)
             self.model = self._load_model(self.model_path)
             if self.model:
-                print(f"[WEAPON_ADAPTER] ✓ Loaded custom weapon detection model (Weapons-and-Knives-Detector-with-YOLOv8)")
+                print(f"[WEAPON_ADAPTER] Loaded custom weapon detection model (Weapons-and-Knives-Detector-with-YOLOv8)")
         
-        # PRIORITY 2: FalconAI models (if custom model not available)
-        if self.model is None:
-            for model_path in [FALCONS_YOLOV8S_MODEL, FALCONS_YOLOV8N_MODEL]:
-                if model_path.exists():
-                    self.model_path = str(model_path)
-                    self.model = self._load_model(self.model_path)
-                    if self.model:
-                        print(f"[WEAPON_ADAPTER] Loaded Falcons-ai pre-trained model: {model_path.name}")
-                        break
-        
-        # If still no model, warn user
+        # If no model loaded, warn user
         if self.model is None:
             print("[WEAPON_ADAPTER] WARNING: No weapon detection model found!")
         
@@ -180,54 +87,22 @@ class WeaponDetectionAdapter(ModelAdapter):
             traceback.print_exc()
             return None
 
-    def _load_tf_saved_model(self, model_dir: str | None) -> Any:
-        if not model_dir or tf is None:
-            return None
-
-        saved_model_dir = Path(model_dir)
-        if not saved_model_dir.exists():
-            return None
-
-        try:
-            loaded = tf.saved_model.load(str(saved_model_dir))
-        except Exception:
-            return None
-
-        signatures = getattr(loaded, "signatures", {})
-        if "serving_default" in signatures:
-            return signatures["serving_default"]
-        if signatures:
-            return next(iter(signatures.values()))
-        return loaded
-
     def describe(self) -> dict[str, str]:
         details = super().describe()
-        if self.legacy_service_url:
-            active_backend = "legacy_tf_service"
-        elif self.model_path and "yolov8" in str(self.model_path).lower():
-            active_backend = "yolov8_falcons_pretrained" if "weapons_detection_trainer" in str(self.model_path) else "yolov8_custom"
-        elif self.tf_saved_model is not None:
-            active_backend = "tf2_saved_model"
+        if self.model_path and "yolov8" in str(self.model_path).lower():
+            active_backend = "yolov8_custom"
         elif self.model is not None:
             active_backend = "ultralytics_yolo"
         else:
             active_backend = "placeholder"
 
         details["active_backend"] = active_backend
-        details["legacy_service_url"] = self.legacy_service_url
-        details["tf_saved_model_dir"] = self.tf_saved_model_dir or ""
         details["model_path"] = self.model_path or ""
         return details
 
     async def infer(self, request: PerceptionRequest) -> WeaponDetection:
         print(f"[WEAPON] Starting inference - has video={bool(request.video and request.video.uri)}")
         
-        if self.legacy_service_url and request.video and request.video.uri:
-            prediction = await self._infer_with_legacy_service(request)
-            if prediction is not None:
-                print(f"[WEAPON] Using legacy service - result: {prediction}")
-                return prediction
-
         if self.model is not None and request.video and request.video.uri:
             source = Path(request.video.uri)
             print(f"[WEAPON] Trying YOLOv8 - source exists: {source.exists()}, model loaded: {self.model is not None}")
@@ -235,14 +110,6 @@ class WeaponDetectionAdapter(ModelAdapter):
                 prediction = self._infer_with_yolo(source)
                 if prediction is not None:
                     print(f"[WEAPON] YOLOv8 result: weapon={prediction.label}, conf={prediction.confidence}, bboxes={prediction.bounding_boxes}")
-                    return prediction
-
-        if self.tf_saved_model is not None and request.video and request.video.uri:
-            source = Path(request.video.uri)
-            if source.exists():
-                prediction = self._infer_with_tf_saved_model(source)
-                if prediction is not None:
-                    print(f"[WEAPON] TF model result: {prediction}")
                     return prediction
 
         print(f"[WEAPON] Using placeholder backend")
@@ -277,58 +144,6 @@ class WeaponDetectionAdapter(ModelAdapter):
             sampled_frames=1,
         )
 
-    async def _infer_with_legacy_service(self, request: PerceptionRequest) -> WeaponDetection | None:
-        payload = {
-            "source_id": request.source_id,
-            "video_uri": request.video.uri,
-            "stream_type": request.video.stream_type,
-        }
-
-        try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.post(f"{self.legacy_service_url}/infer", json=payload)
-                response.raise_for_status()
-        except httpx.HTTPError:
-            return None
-
-        data = response.json()
-        return WeaponDetection(
-            label=self._normalize_label(str(data.get("label", "unknown_object")).lower()),
-            confidence=float(data.get("confidence", 0.0)),
-            bounding_boxes=data.get("bounding_boxes", []),
-            backend="legacy_tf_service",
-            class_evidence=[{"label": self._normalize_label(str(data.get("label", "unknown_object")).lower()), "confidence": float(data.get("confidence", 0.0)), "frame_index": 0}],
-            sampled_frames=1,
-        )
-
-    def _infer_with_tf_saved_model(self, source: Path) -> WeaponDetection | None:
-        if source.suffix.lower() in {".jpg", ".jpeg", ".png", ".bmp"}:
-            image = self._load_frame(source)
-            return self._run_tf_saved_model_on_frame(image, frame_index=0)
-
-        best_detection: WeaponDetection | None = None
-        evidence_by_label: dict[str, dict[str, float | int | str]] = {}
-        sampled_frames = 0
-        for frame_index, frame in self._sample_video_frames(source, self.video_frame_samples):
-            sampled_frames += 1
-            detection = self._run_tf_saved_model_on_frame(frame, frame_index=frame_index)
-            if detection is None:
-                continue
-            for item in detection.class_evidence:
-                label = str(item["label"])
-                if label not in evidence_by_label or float(item["confidence"]) > float(evidence_by_label[label]["confidence"]):
-                    evidence_by_label[label] = item
-            if self._is_better_detection(detection, best_detection):
-                best_detection = detection
-
-        if best_detection is not None:
-            best_detection.class_evidence = sorted(
-                evidence_by_label.values(),
-                key=lambda item: float(item["confidence"]),
-                reverse=True,
-            )[:3]
-            best_detection.sampled_frames = sampled_frames
-        return best_detection
 
     def _infer_with_yolo(self, source: Path) -> WeaponDetection | None:
         if source.suffix.lower() in {".jpg", ".jpeg", ".png", ".bmp"}:
@@ -435,9 +250,9 @@ class WeaponDetectionAdapter(ModelAdapter):
         # Weapons are significantly elongated:
         # - Guns: 1.5-3.0 ratio (much wider than tall)
         # - Knives: 2.0-4.0 ratio (thin and long)
-        # Faces: 0.8-1.2 ratio or wider (person's head area is too large)
-        # VERY RELAXED: Accept wide range of shapes, face filtering handles rest
-        MIN_ASPECT_RATIO = 0.4  # Very permissive - accept most shapes
+        # Reject: Hand gestures, arms (typically <1.0 ratio), faces (0.8-1.2 ratio)
+        # STRICT: Only accept properly elongated objects
+        MIN_ASPECT_RATIO = 0.5  # Relaxed - allows tilted/vertical weapons, new model variant
         
         aspect_ratio_valid = aspect_ratio >= MIN_ASPECT_RATIO
         
@@ -485,54 +300,6 @@ class WeaponDetectionAdapter(ModelAdapter):
         
         return label
 
-    def _detect_faces(self, image: np.ndarray) -> list[dict[str, float]]:
-        """Detect faces in image using MediaPipe or OpenCV - returns normalized bounding boxes"""
-        
-        height, width = image.shape[:2]
-        faces = []
-        
-        # Try MediaPipe first
-        if self.face_detector is not None and not self.use_opencv_face_detection:
-            try:
-                rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-                results = self.face_detector.process(rgb_image)
-                
-                if results.detections:
-                    for idx, detection in enumerate(results.detections):
-                        bbox = detection.location_data.relative_bounding_box
-                        x_min = max(0.0, bbox.xmin - 0.1)
-                        y_min = max(0.0, bbox.ymin - 0.1)
-                        x_max = min(1.0, bbox.xmin + bbox.width + 0.1)
-                        y_max = min(1.0, bbox.ymin + bbox.height + 0.1)
-                        face_conf = detection.score[0] if detection.score else 0.5
-                        faces.append({'x_min': x_min, 'y_min': y_min, 'x_max': x_max, 'y_max': y_max, 'confidence': face_conf})
-                        print(f"[FACE_DETECT]   Face #{idx}: bbox=[{x_min:.3f}, {y_min:.3f}, {x_max:.3f}, {y_max:.3f}], conf={face_conf:.3f}", flush=True)
-                print(f"[FACE_DETECT] Found {len(faces)} faces (MediaPipe)", flush=True)
-                return faces
-            except Exception as e:
-                print(f"[FACE_DETECT] MediaPipe error: {e}, falling back to OpenCV", flush=True)
-        
-        # Fallback to OpenCV cascade classifier
-        if self.use_opencv_face_detection and opencv_face_cascade is not None:
-            try:
-                gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-                detected_faces = opencv_face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
-                
-                for idx, (x, y, w, h) in enumerate(detected_faces):
-                    # Convert pixel coordinates to normalized [0, 1]
-                    x_min = max(0.0, (x - 10) / width)  # Expand by 10 pixels
-                    y_min = max(0.0, (y - 10) / height)
-                    x_max = min(1.0, (x + w + 10) / width)
-                    y_max = min(1.0, (y + h + 10) / height)
-                    faces.append({'x_min': x_min, 'y_min': y_min, 'x_max': x_max, 'y_max': y_max, 'confidence': 0.8})
-                    print(f"[FACE_DETECT]   Face #{idx}: bbox=[{x_min:.3f}, {y_min:.3f}, {x_max:.3f}, {y_max:.3f}], conf=0.8", flush=True)
-                print(f"[FACE_DETECT] Found {len(faces)} faces (OpenCV)", flush=True)
-                return faces
-            except Exception as e:
-                print(f"[FACE_DETECT] OpenCV error: {e}", flush=True)
-        
-        print(f"[FACE_DETECT] No face detection available - returning empty list", flush=True)
-        return []
 
     def _bbox_overlaps_with_faces(self, weapon_bbox: list[float], face_bboxes: list[dict[str, float]]) -> bool:
         """Check if weapon bounding box overlaps with any detected face
@@ -556,77 +323,21 @@ class WeaponDetectionAdapter(ModelAdapter):
             print(f"[FACE_FILTER] Error checking overlap: {e}", flush=True)
             return False
 
-    def _run_tf_saved_model_on_frame(self, image: np.ndarray, frame_index: int) -> WeaponDetection | None:
-        rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        tensor = tf.convert_to_tensor(np.expand_dims(rgb, axis=0), dtype=tf.uint8)
-
-        try:
-            outputs = self.tf_saved_model(tensor)
-        except Exception:
-            return None
-
-        def _to_numpy(name: str) -> np.ndarray | None:
-            value = outputs.get(name)
-            if value is None:
-                return None
-            if hasattr(value, "numpy"):
-                return value.numpy()
-            return np.asarray(value)
-
-        boxes = _to_numpy("detection_boxes")
-        scores = _to_numpy("detection_scores")
-        classes = _to_numpy("detection_classes")
-        if boxes is None or scores is None or classes is None:
-            return None
-
-        best_score = float(scores[0][0])
-        # Threshold set to 0.10 to filter false positives while catching real weapons
-        if best_score < 0.10:
-            return WeaponDetection(
-                label="unarmed",
-                confidence=round(best_score, 4),
-                bounding_boxes=[],
-                backend="tf2_saved_model",
-                class_evidence=[{"label": "unarmed", "confidence": round(best_score, 4), "frame_index": frame_index}],
-                sampled_frames=1,
-            )
-
-        class_id = int(classes[0][0])
-        height, width = image.shape[:2]
-        y_min, x_min, y_max, x_max = boxes[0][0]
-        xyxy = [
-            round(float(x_min * width), 2),
-            round(float(y_min * height), 2),
-            round(float(x_max * width), 2),
-            round(float(y_max * height), 2),
-        ]
-
-        return WeaponDetection(
-            label=self._map_repo_class_id(class_id),
-            confidence=round(best_score, 4),
-            bounding_boxes=[xyxy],
-            backend="tf2_saved_model",
-            class_evidence=self._build_tf_class_evidence(classes[0], scores[0], frame_index),
-            sampled_frames=1,
-        )
 
     def _run_yolo_on_frame(self, image: np.ndarray, frame_index: int) -> WeaponDetection | None:
         """Run YOLO model on frame with minimum confidence threshold and face exclusion filtering"""
         
         # Minimum confidence thresholds:
         # - YOLO search threshold: 0.05 (to find all candidate detections)
-        # - Weapon detection threshold: 0.05 (lowered from 0.10 to catch more legitimate weapons while face filtering removes FP)
-        # NOTE: Firearms (gun, rifle, shotgun) use lower threshold 0.04 for better detection
+        # - Weapon detection threshold: 0.75 (strict to reduce false positives on hand gestures)
+        # NOTE: Firearms (gun, rifle, shotgun) use same threshold 0.70 for consistency
         YOLO_CONF_THRESHOLD = 0.05  # Very low to find all candidates
-        MIN_WEAPON_CONFIDENCE = 0.05  # LOW THRESHOLD to catch real weapons; face filtering + aspect ratio handles FP
-        MIN_FIREARM_CONFIDENCE = 0.04  # Even lower for firearms (high security priority)
+        MIN_WEAPON_CONFIDENCE = 0.25 # STRICT THRESHOLD to catch only confident real weapons
+        MIN_FIREARM_CONFIDENCE = 0.20  # Firearms require high confidence
         
         height, width = image.shape[:2]
-        print(f"[YOLO] Frame size: {width}x{height}, face_detector available: {self.face_detector is not None}", flush=True)
-        
-        # FILTER 0: Detect faces FIRST to create exclusion zones
-        face_bboxes = self._detect_faces(image)
-        print(f"[YOLO] Face detection complete: {len(face_bboxes)} faces found", flush=True)
+        print(f"[YOLO] Frame size: {width}x{height}", flush=True)
+    
         
         results = self.model.predict(source=image, verbose=False, conf=YOLO_CONF_THRESHOLD)
         print(f"[YOLO] Prediction results: {len(results) if results else 0} result objects", flush=True)
@@ -701,51 +412,6 @@ class WeaponDetectionAdapter(ModelAdapter):
         
         print(f"[YOLO] ✓ Best detection (>= {MIN_WEAPON_CONFIDENCE}): {label} at {confidence}, bbox={xyxy}", flush=True)
 
-        # FILTER 0: Face exclusion - REJECT if overlaps with detected face
-        if face_bboxes and label not in {"unarmed", "unknown_object"}:
-            print(f"[YOLO] Checking {label} against {len(face_bboxes)} detected faces", flush=True)
-            # Convert weapon bbox from pixel to normalized coordinates
-            x1_norm = xyxy[0] / width
-            y1_norm = xyxy[1] / height
-            x2_norm = xyxy[2] / width
-            y2_norm = xyxy[3] / height
-            weapon_area = (x2_norm - x1_norm) * (y2_norm - y1_norm)
-            
-            print(f"[YOLO] Weapon bbox normalized: [{x1_norm:.3f}, {y1_norm:.3f}, {x2_norm:.3f}, {y2_norm:.3f}], area={weapon_area:.4f}", flush=True)
-            
-            # FIREARM OVERRIDE: Firearms get more lenient face filtering
-            # Guns in hands cause face overlap but are still valid detections
-            firearm_mode = label in {"gun", "rifle", "shotgun", "firearm"}
-            face_overlap_threshold = 0.50 if firearm_mode else 0.30  # Firearms need >50% overlap to reject, others >30%
-            
-            # Check if weapon overlaps with any face
-            for face_idx, face in enumerate(face_bboxes):
-                # Calculate intersection
-                x_min_overlap = max(x1_norm, face['x_min'])
-                y_min_overlap = max(y1_norm, face['y_min'])
-                x_max_overlap = min(x2_norm, face['x_max'])
-                y_max_overlap = min(y2_norm, face['y_max'])
-                
-                # Check if there's overlap
-                if x_min_overlap < x_max_overlap and y_min_overlap < y_max_overlap:
-                    overlap_area = (x_max_overlap - x_min_overlap) * (y_max_overlap - y_min_overlap)
-                    overlap_ratio = overlap_area / weapon_area if weapon_area > 0 else 0
-                    
-                    print(f"[YOLO]   Face #{face_idx}: overlap_area={overlap_area:.4f}, ratio={overlap_ratio*100:.1f}%", flush=True)
-                    
-                    # If overlap exceeds threshold, reject as false positive
-                    if overlap_ratio > face_overlap_threshold:
-                        print(f"[YOLO] ❌ REJECTED: {label} is {overlap_ratio*100:.1f}% inside face zone (threshold: {face_overlap_threshold*100:.0f}%)", flush=True)
-                        return WeaponDetection(
-                            label="unarmed",
-                            confidence=0.75,
-                            bounding_boxes=[],
-                            backend="ultralytics_yolo",
-                            class_evidence=[{"label": "unarmed", "confidence": 0.75, "frame_index": frame_index}],
-                            sampled_frames=1,
-                        )
-                else:
-                    print(f"[YOLO]   Face #{face_idx}: no overlap (weapon is clear)", flush=True)
         
         # FILTER 1: Check aspect ratio - eliminate square detections (likely faces/objects)
         if label not in {"unarmed", "unknown_object"}:
@@ -816,29 +482,3 @@ class WeaponDetectionAdapter(ModelAdapter):
             return False
         return candidate.confidence > current.confidence
 
-    def _build_tf_class_evidence(
-        self,
-        classes: np.ndarray,
-        scores: np.ndarray,
-        frame_index: int,
-    ) -> list[dict[str, float | int | str]]:
-        evidence_by_label: dict[str, dict[str, float | int | str]] = {}
-        for class_value, score_value in zip(classes.tolist(), scores.tolist()):
-            score = float(score_value)
-            # Threshold set to 0.10 to filter false positives
-            if score < 0.10:
-                continue
-            label = self._map_repo_class_id(int(class_value))
-            item = {
-                "label": label,
-                "confidence": round(score, 4),
-                "frame_index": frame_index,
-            }
-            if label not in evidence_by_label or score > float(evidence_by_label[label]["confidence"]):
-                evidence_by_label[label] = item
-
-        return sorted(
-            evidence_by_label.values(),
-            key=lambda item: float(item["confidence"]),
-            reverse=True,
-        )[:3]

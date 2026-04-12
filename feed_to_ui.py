@@ -69,12 +69,11 @@ def main():
 
     # Send the ReasoningOutput directly as the payload (from_payload handles this)
     payload = reasoning_payload
-    payload["location"] = "Pine Lakes Pkwy (Road Rage)"
-    payload["anomaly_type"] = "weapon_detected"
-    payload["top_scenario"] = "Armed Road Rage - Knife and Gun Brandished"
+    payload["location"] = "Uploaded Video"
+    # Use the actual anomaly_types from reasoning, or fallback to detected weapon
+    actual_anomalies = reasoning_payload.get("anomaly_types", [])
+    payload["anomaly_type"] = actual_anomalies[0] if actual_anomalies else "unknown"
     payload["source"] = "Uploaded Video Analysis"
-    payload["video_path"] = str(current_dir / "perception-layer" / "security-perception-layer" / "videos" / "YTDown.com_YouTube_Florida-man-attacks-driver-with-knife-du_Media_VsO6F2BBu-E_001_720p.mp4")
-    payload["video_caption"] = "Florida man attacks driver with knife; driver pulls gun."
 
     url = "http://localhost:8010/telegram/alert"
     print(f"Sending alert to {url}...")
